@@ -109,14 +109,51 @@ function getStartParam(initData) {
 }
 
 async function ensureUserWithWelcomeCredit(userId) { 
-  const { data } = await SUPABASE.from('user_credits').select('credits').eq('telegram_user_id', userId).limit(1).maybeSingle(); 
-  if (data) return data.credits; 
-  const { error } = await SUPABASE.from('user_credits').insert({ telegram_user_id: userId, credits: 3 }); 
-  if (error) {
-    console.error('Failed to create user with welcome credit:', error);
-    throw new Error(`Failed to create user: ${error.message}`);
+  console.log('[ensureUserWithWelcomeCredit] 开始处理', { userId, timestamp: new Date().toISOString() });
+  
+  // 查询用户是否存在
+  const { data, error: selectError } = await SUPABASE
+    .from('user_credits')
+    .select('credits')
+    .eq('telegram_user_id', userId)
+    .limit(1)
+    .maybeSingle();
+  
+  if (selectError) {
+    console.error('[ensureUserWithWelcomeCredit] 查询用户失败', { userId, error: selectError });
+    throw new Error(`Failed to query user: ${selectError.message}`);
   }
-  return 3 
+  
+  if (data) {
+    console.log('[ensureUserWithWelcomeCredit] 用户已存在', { userId, credits: data.credits });
+    return data.credits; 
+  }
+  
+  // 用户不存在，创建新用户并赠送欢迎积分
+  console.log('[ensureUserWithWelcomeCredit] 创建新用户并赠送欢迎积分', { userId });
+  const { data: insertData, error: insertError } = await SUPABASE
+    .from('user_credits')
+    .insert({ telegram_user_id: userId, credits: 3 })
+    .select();
+  
+  if (insertError) {
+    console.error('[ensureUserWithWelcomeCredit] 创建用户失败', { 
+      userId, 
+      error: insertError,
+      errorCode: insertError.code,
+      errorMessage: insertError.message,
+      errorDetails: insertError.details,
+      errorHint: insertError.hint
+    });
+    throw new Error(`Failed to create user: ${insertError.message}`);
+  }
+  
+  console.log('[ensureUserWithWelcomeCredit] 新用户创建成功，已赠送3积分', { 
+    userId, 
+    insertData,
+    timestamp: new Date().toISOString()
+  });
+  return 3;
 }
 
 async function addCredits(userId, credits) { 
