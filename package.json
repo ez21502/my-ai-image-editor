@@ -1,0 +1,21 @@
+{
+  "name": "my-ai-image-editor",
+  "version": "1.0.0",
+  "description": "AI Image Editor with Telegram Payments",
+  "private": true,
+  "scripts": {
+    "dev:api": "node local-dev-server.js",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:frontend\"",
+    "install:all": "npm install && cd frontend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.84.0"
+  }
+}

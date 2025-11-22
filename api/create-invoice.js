@@ -62,47 +62,33 @@ module.exports = async (req, res) => {
       ))
     }
 
-    // 开发模式支持
-    const isDevMode = initData === 'dev_test_init_data_123456789'
-    
-    if (!isDevMode) {
-      // 验证 initData
-      const isValidInitData = verifyInitData(initData, token)
-      if (!isValidInitData) {
-        logger.warn('Invalid initData', { 
-          hasInitData: !!initData,
-          initDataLength: initData?.length,
-          initDataPreview: initData?.substring(0, 50)
-        })
-        return res.status(401).json(createErrorResponse(
-          'Invalid initData', 
-          'The provided initData is invalid or has been tampered with. Please ensure you are using the app from Telegram.'
-        ))
-      }
-    } else {
-      logger.info('Development mode detected', { requestId })
+    // 验证 initData
+    const isValidInitData = verifyInitData(initData, token)
+    if (!isValidInitData) {
+      logger.warn('Invalid initData', { 
+        hasInitData: !!initData,
+        initDataLength: initData?.length,
+        initDataPreview: initData?.substring(0, 50)
+      })
+      return res.status(401).json(createErrorResponse(
+        'Invalid initData', 
+        'The provided initData is invalid or has been tampered with. Please ensure you are using the app from Telegram.'
+      ))
     }
 
-    let userId
-    if (isDevMode) {
-      // 开发模式使用固定用户ID
-      userId = 123456789
-      logger.info('Development mode - using test user ID', { userId })
-    } else {
-      userId = getUserIdFromInitData(initData)
-      if (!userId) {
-        logger.warn('Cannot extract user ID from initData', {
-          hasInitData: !!initData,
-          initDataPreview: initData?.substring(0, 100)
-        })
-        return res.status(400).json(createErrorResponse(
-          'Cannot extract user ID', 
-          'Unable to extract user ID from initData. Please ensure you are using the app from Telegram.'
-        ))
-      }
+    const userId = getUserIdFromInitData(initData)
+    if (!userId) {
+      logger.warn('Cannot extract user ID from initData', {
+        hasInitData: !!initData,
+        initDataPreview: initData?.substring(0, 100)
+      })
+      return res.status(400).json(createErrorResponse(
+        'Cannot extract user ID', 
+        'Unable to extract user ID from initData. Please ensure you are using the app from Telegram.'
+      ))
     }
     
-    logger.info('Invoice creation validated', { userId, sku, isDevMode })
+    logger.info('Invoice creation validated', { userId, sku })
     
     // 设置用户ID用于速率限制
     req.userId = userId

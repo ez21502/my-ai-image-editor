@@ -23,7 +23,7 @@
 | `TELEGRAM_BOT_TOKEN` | Telegram Bot Token | @BotFather → /token |
 | `TELEGRAM_BOT_USERNAME` | Telegram Bot 用户名 | @BotFather → /setusername |
 | `MAKE_WEBHOOK_URL` | Make.com Webhook URL | Make.com 场景 → Webhook 模块 |
-| `APP_BASE_URL` | 应用部署 URL | 部署后从 Vercel Dashboard 获取 |
+| `APP_BASE_URL` | 应用部署后的公共网址 | 部署后从 Vercel Dashboard → Settings → Domains 获取，或使用默认的 `https://your-project.vercel.app` 格式<br>**用途**：用于生成推荐链接的 Web 版本 |
 
 ### 前端环境变量（Vercel）
 
@@ -34,8 +34,10 @@
 | `VITE_PAYMENTS_BASE_URL` | 后端 API 基础 URL | `/api`（相对路径，同一域名） | 否 |
 | `VITE_MAKE_WEBHOOK_URL` | Make.com Webhook URL（用于备用处理） | - | 否 |
 | `VITE_TELEGRAM_BOT_USERNAME` | Telegram Bot 用户名（用于开发模式） | - | 否 |
-| `VITE_DEV_MODE` | 开发模式标志 | - | 否 |
-| `VITE_ALLOW_NON_TELEGRAM` | 允许非 Telegram 环境（用于开发） | - | 否 |
+
+**⚠️ 重要**：生产环境**不应**设置以下开发模式变量：
+- `VITE_DEV_MODE` - 仅用于本地开发
+- `VITE_ALLOW_NON_TELEGRAM` - 仅用于本地开发
 
 **注意**：
 - 生产环境默认使用相对路径 `/api`（前后端同一域名，无需配置）

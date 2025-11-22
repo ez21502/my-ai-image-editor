@@ -25,38 +25,27 @@ module.exports = async (req, res) => {
       return res.status(400).json(createErrorResponse('Missing initData'))
     }
     
-    // 开发模式支持
-    const isDevMode = initData === 'dev_test_init_data_123456789'
-    
-    if (!isDevMode) {
-      // 验证 initData 格式
-      const initDataValidation = validateInitData(initData)
-      if (!initDataValidation.valid) {
-        return res.status(400).json(createErrorResponse('Validation failed', initDataValidation.error))
-      }
+    // 验证 initData 格式
+    const initDataValidation = validateInitData(initData)
+    if (!initDataValidation.valid) {
+      return res.status(400).json(createErrorResponse('Validation failed', initDataValidation.error))
+    }
 
-      // 验证 initData
-      const token = process.env.TELEGRAM_BOT_TOKEN
-      if (!token) {
-        return res.status(500).json(createErrorResponse('Server configuration error', 'Missing Telegram token'))
-      }
+    // 验证 initData
+    const token = process.env.TELEGRAM_BOT_TOKEN
+    if (!token) {
+      return res.status(500).json(createErrorResponse('Server configuration error', 'Missing Telegram token'))
+    }
 
-      // 完整的 initData 验证
-      const isValid = verifyInitData(initData, token)
-      if (!isValid) {
-        return res.status(401).json(createErrorResponse('Invalid initData'))
-      }
+    // 完整的 initData 验证
+    const isValid = verifyInitData(initData, token)
+    if (!isValid) {
+      return res.status(401).json(createErrorResponse('Invalid initData'))
     }
     
-    let userId
-    if (isDevMode) {
-      // 开发模式使用固定用户ID
-      userId = 123456789
-    } else {
-      userId = getUserIdFromInitData(initData)
-      if (!userId) {
-        return res.status(400).json(createErrorResponse('Cannot extract user ID'))
-      }
+    const userId = getUserIdFromInitData(initData)
+    if (!userId) {
+      return res.status(400).json(createErrorResponse('Cannot extract user ID'))
     }
     
     // 设置用户ID用于速率限制

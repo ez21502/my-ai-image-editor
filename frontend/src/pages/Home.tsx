@@ -34,7 +34,10 @@ export default function Home() {
   const [showTopUp, setShowTopUp] = useState(false)
   // 使用默认后端URL，如果环境变量未设置
   // 生产环境默认使用相对路径（同一域名），开发环境使用 localhost
-  const paymentsBaseUrl = (import.meta.env.VITE_PAYMENTS_BASE_URL as string) || (import.meta.env.DEV ? 'http://localhost:3000/api' : '/api')
+  // 开发环境优先使用 localhost，生产环境默认使用相对路径
+  const paymentsBaseUrl = import.meta.env.DEV 
+    ? (import.meta.env.VITE_PAYMENTS_BASE_URL as string) || 'http://localhost:3000/api'
+    : (import.meta.env.VITE_PAYMENTS_BASE_URL as string) || '/api'
   
   // 使用统一的支付钩子
   const { credits, isLoading: isPaymentLoading, fetchBalance, createInvoice, consumeCredits } = usePayments(paymentsBaseUrl)
@@ -59,7 +62,12 @@ export default function Home() {
     return hasTelegramParams || isTelegramUA || hasTelegramObject || hasTelegramProperties || isFromTelegram || isTelegramUrl || isProductionTelegramEnv || hasDesktopProperties || hasTelegramHash
   }, [])
 
-  useEffect(() => { if (telegramUserId === 123456789) { setTelegramUserId(null) } try { const s = localStorage.getItem('test_telegram_user_id'); if (s) { localStorage.removeItem('test_telegram_user_id') } } catch {} }, [])
+  useEffect(() => { 
+    // 清理任何测试用户ID
+    if (telegramUserId === 123456789) { 
+      setTelegramUserId(null) 
+    }
+  }, [telegramUserId])
   useEffect(() => { if (uploadedImage) {} }, [uploadedImage])
   useEffect(() => { if (inTgFromProvider && initData) { fetchBalance() } }, [inTgFromProvider, initData, fetchBalance])
   useEffect(() => { onInvoiceClosed((data) => { fetchBalance(); notificationHaptic('success') }) }, [onInvoiceClosed, notificationHaptic, fetchBalance])
@@ -91,7 +99,7 @@ export default function Home() {
 
   useEffect(() => {
     const handleTelegramLoaded = () => { checkTelegramSDK() }
-    const handleTelegramFailed = () => { setIsTelegramSDKLoaded(false); if (isDevEnvironment) { setIsInTelegram(true) } }
+    const handleTelegramFailed = () => { setIsTelegramSDKLoaded(false) }
     window.addEventListener('telegram-sdk-loaded', handleTelegramLoaded)
     window.addEventListener('telegram-sdk-failed', handleTelegramFailed)
     checkTelegramSDK()
@@ -108,7 +116,6 @@ export default function Home() {
       const tgWebAppData = allParams.get('tgWebAppData') || allParams.get('#tgWebAppData')
       if (tgWebAppData) { try { const decodedData = decodeURIComponent(tgWebAppData); const userIdMatch = decodedData.match(/"id"\s*:\s*(\d+)/); const userId = userIdMatch ? parseInt(userIdMatch[1]) : null; if (userId) { window.Telegram = { WebApp: { initDataUnsafe: { user: { id: userId, first_name: 'User', last_name: '', username: 'user' } }, initData: tgWebAppData, ready: () => {}, close: () => {} } } } } catch {} } else { window.Telegram = { WebApp: { initDataUnsafe: { user: { id: 1740576312, first_name: 'NetlifyUser', last_name: '', username: 'netlifyuser' } }, initData: 'netlify_fallback_data', ready: () => {}, close: () => {} } } }
     }
-    if (isDevEnvironment && !window.Telegram?.WebApp) { window.Telegram = { WebApp: { initDataUnsafe: { user: { id: 1740576312, first_name: 'DevTest', last_name: 'User', username: 'devtest' } }, initData: 'dev_test_data', ready: () => {}, close: () => {} } } }
     if (window.Telegram?.WebApp) {
       try { window.Telegram.WebApp.ready() } catch {}
       setIsInTelegram(true)
@@ -272,13 +279,22 @@ export default function Home() {
       const userId = telegramUserId || realTimeUserId
       if (!userId) { toast.error('无法获取用户信息，请确保在Telegram环境中使用此应用'); setIsProcessing(false); return }
       if (typeof userId !== 'number' || userId <= 0) { toast.error(`获取的用户信息无效(${userId})，请重新在Telegram中打开应用`); setIsProcessing(false); return }
-      if (userId === 123456789) { toast.error('检测到测试环境ID，请使用真实的Telegram账号'); setIsProcessing(false); return }
+      // 验证用户ID有效性
+      if (!userId || userId <= 0) {
+        toast.error('无法获取有效的用户ID，请确保在Telegram环境中使用')
+        setIsProcessing(false)
+        return
+      }
       const base64Length = compositeImage.length
       if (base64Length > 5000000) { toast.error('图片数据过大，请上传更小的图片'); return }
       let pureBase64 = compositeImage
       if (compositeImage.includes('data:image/png;base64,')) { pureBase64 = compositeImage.replace('data:image/png;base64,', '') } else if (compositeImage.includes('data:image/jpeg;base64,')) { pureBase64 = compositeImage.replace('data:image/jpeg;base64,', '') } else if (compositeImage.includes('data:image/')) { const commaIndex = compositeImage.indexOf(','); if (commaIndex !== -1) { pureBase64 = compositeImage.substring(commaIndex + 1) } }
       const chatId = String(userId)
-      if (!chatId || chatId === '123456789') { toast.error('检测到无效的聊天ID，请使用真实的Telegram账号'); setIsProcessing(false); return }
+      if (!chatId) {
+        toast.error('无法获取聊天ID，请确保在Telegram环境中使用')
+        setIsProcessing(false)
+        return
+      }
       const payload = { composite_image_base64: pureBase64, prompt: currentPrompt, chat_id: chatId }
       if (credits !== null) {
         if (credits <= 0) { setShowTopUp(true); setIsProcessing(false); return }
@@ -436,23 +452,12 @@ export default function Home() {
               )}
               <div className={`${isFullscreenMode?'':'max-w-4xl mx-auto'}`}>
                 <div className="flex justify-end gap-3">
-                  <Button onClick={handleStartRepaint} disabled={isProcessing||!currentPrompt.trim()||!isCanvasReady||maskObjectCount===0||(!isInTelegram&&!isDevEnvironment)} variant="primary" size="large">{isProcessing?'处理中...':'开始重绘'}</Button>
+                  <Button onClick={handleStartRepaint} disabled={isProcessing||!currentPrompt.trim()||!isCanvasReady||maskObjectCount===0||!isInTelegram} variant="primary" size="large">{isProcessing?'处理中...':'开始重绘'}</Button>
                   <Button onClick={()=>setShowTopUp(true)} variant="destructive" size="large">充值</Button>
                 </div>
                 {uploadedImage&&isCanvasReady&&(
                   <div className="text-center mt-2">
-                    {!isInTelegram&&!isDevEnvironment?(<p className="text-red-400 text-sm">⚠️ 请在Telegram环境中使用此应用</p>):maskObjectCount===0?(<p className="text-yellow-400 text-sm">💡 请在图片上绘制遮罩区域后再点击开始重绘</p>):(<p className="text-green-400 text-sm">✅ 已绘制 {maskObjectCount} 个遮罩区域</p>)}
-                  </div>
-                )}
-                {isDevEnvironment&&(
-                  <div className="mt-4 p-4 bg-gray-800 rounded border border-yellow-600">
-                    <h3 className="text-sm font-medium mb-2 text-yellow-400">🔧 开发测试工具</h3>
-                    <div className="space-y-2">
-                      <button onClick={()=>{}} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded">检查当前状态</button>
-                      <button onClick={()=>{const testUserId=1740576312;setTelegramUserId(testUserId);setIsInTelegram(true)}} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded ml-2">模拟测试账号</button>
-                      <button onClick={()=>{setTelegramUserId(null);setIsInTelegram(false)}} className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded ml-2">重置状态</button>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-2">⚠️ 这些工具仅在开发环境中显示</p>
+                    {!isInTelegram?(<p className="text-red-400 text-sm">⚠️ 请在Telegram环境中使用此应用</p>):maskObjectCount===0?(<p className="text-yellow-400 text-sm">💡 请在图片上绘制遮罩区域后再点击开始重绘</p>):(<p className="text-green-400 text-sm">✅ 已绘制 {maskObjectCount} 个遮罩区域</p>)}
                   </div>
                 )}
               </div>

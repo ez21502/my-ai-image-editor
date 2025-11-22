@@ -65,8 +65,10 @@ export default function Home() {
   })
   
   // 使用默认后端URL，如果环境变量未设置
-  // 生产环境默认使用相对路径（同一域名），开发环境使用 localhost
-  const paymentsBaseUrl = (import.meta.env.VITE_PAYMENTS_BASE_URL as string) || (import.meta.env.DEV ? 'http://localhost:3000/api' : '/api')
+  // 开发环境优先使用 localhost，生产环境默认使用相对路径（同一域名）
+  const paymentsBaseUrl = import.meta.env.DEV 
+    ? (import.meta.env.VITE_PAYMENTS_BASE_URL as string) || 'http://localhost:3000/api'
+    : (import.meta.env.VITE_PAYMENTS_BASE_URL as string) || '/api'
   
   // 检查支付配置
   useEffect(() => {
@@ -82,36 +84,26 @@ export default function Home() {
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
   const originalImageRef = useRef<HTMLImageElement | null>(null)
 
-  // TMA-enhanced user detection with development mode support
+  // TMA-enhanced user detection
   useEffect(() => {
     if (user) {
       console.log('🎯 TMA User detected:', user)
       setTelegramUserId(user.id)
       notificationHaptic('success')
-    } else if (isDevEnvironment && import.meta.env.VITE_ALLOW_NON_TELEGRAM === 'true') {
-      // 开发模式下创建模拟用户
-      console.log('🔧 Development mode: Creating mock user')
-      const mockUser = {
-        id: 123456789,
-        first_name: '开发用户',
-        username: 'dev_user'
-      }
-      setTelegramUserId(mockUser.id)
-      // 余额将通过 fetchBalance() 获取
     }
-  }, [user, notificationHaptic, isDevEnvironment])
+  }, [user, notificationHaptic])
   
   useEffect(() => { 
     // 在telegram环境中，即使initData暂时为空也尝试获取余额
     // 因为initData可能在组件加载后才可用
-    if (isInTelegram || (isDevEnvironment && import.meta.env.VITE_ALLOW_NON_TELEGRAM === 'true')) {
+    if (isInTelegram && initData) {
       // 延迟一点执行，确保initData已经准备好
       const timer = setTimeout(() => {
         fetchBalance()
       }, 500)
       return () => clearTimeout(timer)
     }
-  }, [isInTelegram, initData, fetchBalance, isDevEnvironment])
+  }, [isInTelegram, initData, fetchBalance])
   useEffect(() => { onInvoiceClosed(()=>{ fetchBalance(); notificationHaptic('success') }) }, [onInvoiceClosed, notificationHaptic, fetchBalance])
 
   // 使用统一的支付方法处理套餐选择
@@ -989,8 +981,8 @@ export default function Home() {
 
     // 提示词验证已移除，使用默认提示词
 
-    // TMA用户验证 - 开发模式下允许无用户测试
-    if (!user && !isDevEnvironment && import.meta.env.VITE_ALLOW_NON_TELEGRAM !== 'true') {
+    // TMA用户验证
+    if (!user) {
       toast.error('请在Telegram环境中使用此应用')
       notificationHaptic('error')
       return
@@ -1112,7 +1104,7 @@ export default function Home() {
       
       // 准备发送的数据 - 匹配后端期望的格式
       const compositeImage = originalImageData // 使用原始图片作为合成图片
-      const chatId = user?.id || (isDevEnvironment && import.meta.env.VITE_ALLOW_NON_TELEGRAM === 'true' ? 123456789 : null)
+      const chatId = user?.id
       
       const requestData = {
         composite_image_base64: compositeImage,
@@ -1542,10 +1534,10 @@ export default function Home() {
                     <Button onClick={()=>setShowTopUp(true)} variant="destructive" size="large">充值</Button>
                   </div>
                   {/* 在非Telegram环境或开发环境显示开始重绘按钮 */}
-                  {(!isInTelegram || isDevEnvironment) && (
+                  {!isInTelegram && (
                     <Button
                       onClick={handleStartRepaint}
-                      disabled={isProcessing || !isCanvasReady || maskObjectCount === 0 || (!user && !isDevEnvironment)}
+                      disabled={isProcessing || !isCanvasReady || maskObjectCount === 0 || !user}
                       variant="primary"
                       size="large"
                     >
@@ -1555,7 +1547,7 @@ export default function Home() {
                 </div>
                 {uploadedImage && isCanvasReady && (
                   <div className="text-center mt-2">
-                    {!user && !isDevEnvironment ? (
+                    {!user ? (
                       <p className="text-red-400 text-sm">⚠️ 请在Telegram环境中使用此应用</p>
                     ) : maskObjectCount === 0 ? (
                       <p className="text-yellow-400 text-sm">💡 请在图片上绘制遮罩区域后再点击开始重绘</p>

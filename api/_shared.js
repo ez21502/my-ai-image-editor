@@ -1,6 +1,11 @@
 const crypto = require('crypto')
 const { createClient } = require('@supabase/supabase-js')
 
+// 生产环境：必须配置 Supabase
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error('Missing required environment variables: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured for production')
+}
+
 const SUPABASE = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 
 // Admin 权限验证工具

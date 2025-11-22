@@ -2,6 +2,11 @@ const { SUPABASE, verifyInitData, getUserIdFromInitData, isAdmin, isSuperAdmin, 
 const { corsMiddleware, handleOptions } = require('./_cors')
 
 module.exports = async (req, res) => {
+  // 生产环境禁用此端点（仅用于开发/测试）
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_ADMIN_TEST !== 'true') {
+    return res.status(404).json({ error: 'Not found' })
+  }
+  
   // 应用 CORS 中间件
   corsMiddleware(req, res, () => {})
   

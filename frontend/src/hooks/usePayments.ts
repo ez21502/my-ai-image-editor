@@ -73,19 +73,15 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
       return
     }
     
-    // 开发模式下允许无initData测试
-    const isDevMode = import.meta.env.VITE_DEV_MODE === 'true' || import.meta.env.VITE_ALLOW_NON_TELEGRAM === 'true'
-    const testInitData = isDevMode ? 'dev_test_init_data_123456789' : initData
-    
-    if (!testInitData) {
-      console.warn('fetchBalance: initData为空，无法获取余额', { isDevMode, initData })
+    if (!initData) {
+      console.warn('fetchBalance: initData为空，无法获取余额')
       return
     }
     
-    console.log('fetchBalance: 开始获取余额', { paymentsBaseUrl, hasInitData: !!testInitData })
+    console.log('fetchBalance: 开始获取余额', { paymentsBaseUrl, hasInitData: !!initData })
     setIsLoading(true)
     try {
-      const url = `${paymentsBaseUrl}/api/balance?initData=${encodeURIComponent(testInitData)}`
+      const url = `${paymentsBaseUrl}/balance?initData=${encodeURIComponent(initData)}`
       console.log('fetchBalance: 请求URL', url)
       const response = await fetch(url)
       const data = await response.json()
@@ -96,13 +92,11 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
         console.log('fetchBalance: 余额获取成功', data.credits)
       } else {
         console.error('Failed to fetch balance:', data.error)
-        // 开发模式下设置默认积分
-        setCredits(isDevMode ? 10 : 0)
+        setCredits(0)
       }
     } catch (error) {
       console.error('Error fetching balance:', error)
-      // 开发模式下设置默认积分
-      setCredits(isDevMode ? 10 : 0)
+      setCredits(0)
     } finally {
       setIsLoading(false)
     }
@@ -123,24 +117,19 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
       return null
     }
 
-    // 开发模式下允许无initData测试
-    const isDevMode = import.meta.env.VITE_DEV_MODE === 'true' || import.meta.env.VITE_ALLOW_NON_TELEGRAM === 'true'
-    const testInitData = isDevMode ? 'dev_test_init_data_123456789' : initData
-    
-    if (!testInitData) {
+    if (!initData) {
       toast.error('支付配置错误：需要Telegram认证', {
-        description: '请在Telegram环境中使用此功能，或启用开发模式'
+        description: '请在Telegram环境中使用此功能'
       })
       return null
     }
 
     try {
-      const apiUrl = `${paymentsBaseUrl}/api/create-invoice`
+      const apiUrl = `${paymentsBaseUrl}/create-invoice`
       console.log('createInvoice: 请求创建发票', { 
         apiUrl, 
         sku, 
-        hasInitData: !!testInitData,
-        isDevMode,
+        hasInitData: !!initData,
         retryCount
       })
 
@@ -150,7 +139,7 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({ initData: testInitData, sku })
+        body: JSON.stringify({ initData, sku })
       })
 
       // 检查响应状态
@@ -174,13 +163,6 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
           console.log(`createInvoice: 服务器错误，${RETRY_DELAY}ms后重试 (${retryCount + 1}/${MAX_RETRIES})`)
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
           return createInvoice(sku, retryCount + 1)
-        }
-
-        // 开发模式下特殊处理
-        if (isDevMode && (errorData.error?.includes('Invalid initData') || response.status === 401)) {
-          console.log('createInvoice: 开发模式 - 使用模拟支付链接')
-          toast.success('开发模式：模拟支付链接创建成功')
-          return `https://t.me/${import.meta.env.VITE_TELEGRAM_BOT_USERNAME || '@test_bot'}?start=invoice_${Date.now()}`
         }
 
         // 安全提取错误消息
@@ -209,13 +191,6 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
         console.log('createInvoice: 发票创建成功', { invoiceLink: data.invoiceLink.substring(0, 50) + '...' })
         return data.invoiceLink
       } else {
-        // 开发模式下模拟支付链接
-        if (isDevMode) {
-          console.log('createInvoice: 开发模式 - 使用模拟支付链接')
-          toast.success('开发模式：模拟支付链接创建成功')
-          return `https://t.me/${import.meta.env.VITE_TELEGRAM_BOT_USERNAME || '@test_bot'}?start=invoice_${Date.now()}`
-        }
-
         // 安全提取错误消息
         const errorMessage = extractErrorMessage(data.details || data.error || data || '未知错误')
         console.error('createInvoice: API返回失败', { 
@@ -240,13 +215,6 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
         return createInvoice(sku, retryCount + 1)
       }
 
-      // 开发模式下模拟支付链接
-      if (isDevMode) {
-        console.log('createInvoice: 开发模式 - 网络错误时使用模拟支付链接')
-        toast.warning('开发模式：网络错误，使用模拟支付链接')
-        return `https://t.me/${import.meta.env.VITE_TELEGRAM_BOT_USERNAME || '@test_bot'}?start=invoice_${Date.now()}`
-      }
-
       const errorMessage = error instanceof Error ? error.message : '网络连接失败'
       toast.error('创建支付链接失败', {
         description: `${errorMessage}。请检查网络连接后重试。`
@@ -261,21 +229,17 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
       return false
     }
 
-    // 开发模式下允许无initData测试
-    const isDevMode = import.meta.env.VITE_DEV_MODE === 'true' || import.meta.env.VITE_ALLOW_NON_TELEGRAM === 'true'
-    const testInitData = isDevMode ? 'dev_test_init_data_123456789' : initData
-    
-    if (!testInitData) {
+    if (!initData) {
       toast.error('支付配置错误：需要Telegram认证')
       return false
     }
 
     setIsProcessing(true)
     try {
-      const response = await fetch(`${paymentsBaseUrl}/api/consume`, {
+      const response = await fetch(`${paymentsBaseUrl}/consume`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, initData: testInitData })
+        body: JSON.stringify({ ...payload, initData })
       })
 
       const data = await response.json()
@@ -287,35 +251,14 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
         }
         return true
       } else if (data.error === 'insufficient_credits') {
-        // 开发模式下模拟积分消耗
-        if (isDevMode && data.error === 'Invalid initData') {
-          toast.warning('开发模式：积分不足，将使用webhook模式')
-          return null // 返回null表示使用webhook模式
-        }
         toast.error('积分不足，请先充值')
         return false
       } else {
-        // 开发模式下模拟处理成功
-        if (isDevMode && data.error === 'Invalid initData') {
-          toast.success('开发模式：模拟处理成功')
-          if (credits!==null) {
-            setCredits(Math.max(0, credits - 1))
-          }
-          return true
-        }
         toast.error(`处理失败: ${data.message || data.error}`)
         return false
       }
     } catch (error) {
       console.error('Error consuming credits:', error)
-      // 开发模式下模拟处理成功
-      if (isDevMode) {
-        toast.success('开发模式：模拟处理成功（网络错误）')
-        if (credits!==null) {
-          setCredits(Math.max(0, credits - 1))
-        }
-        return true
-      }
       toast.error('处理失败')
       return false
     } finally {
@@ -324,16 +267,14 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
   }, [initData, paymentsBaseUrl, credits])
 
   const openPaymentModal = useCallback(async (sku: string): Promise<boolean> => {
-    const isDevMode = import.meta.env.VITE_DEV_MODE === 'true' || import.meta.env.VITE_ALLOW_NON_TELEGRAM === 'true'
-    
-    if (!openInvoice && !isDevMode) {
+    if (!openInvoice) {
       toast.error('支付功能不可用', {
         description: '请在Telegram环境中使用此功能'
       })
       return false
     }
 
-    console.log('openPaymentModal: 开始创建支付链接', { sku, isDevMode, hasOpenInvoice: !!openInvoice })
+    console.log('openPaymentModal: 开始创建支付链接', { sku, hasOpenInvoice: !!openInvoice })
 
     try {
       const invoiceLink = await createInvoice(sku)
@@ -343,22 +284,6 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
       }
 
       console.log('openPaymentModal: 支付链接创建成功', { invoiceLink: invoiceLink.substring(0, 50) + '...' })
-
-      // 开发模式下模拟支付过程
-      if (isDevMode && !openInvoice) {
-        console.log('openPaymentModal: 开发模式 - 模拟支付成功')
-        toast.success('开发模式：模拟支付成功！', {
-          description: '已自动增加积分'
-        })
-        // 模拟支付成功，增加积分
-        const creditsToAdd = parseInt(sku.replace('pack', '')) || 30
-        setCredits((prev) => (prev || 0) + creditsToAdd)
-        // 延迟刷新余额以确保状态更新
-        setTimeout(() => {
-          fetchBalance()
-        }, 500)
-        return true
-      }
 
       if (!openInvoice) {
         console.error('openPaymentModal: openInvoice函数不可用')
