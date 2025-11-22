@@ -51,7 +51,8 @@ module.exports = async (req, res) => {
 
     // 生成推荐链接
     const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'your_bot_username'
-    const baseUrl = process.env.APP_BASE_URL || 'https://my-ai-image-editor-fc7blcgqx-ez21502s-projects.vercel.app'
+    // 注意：生产环境必须设置 APP_BASE_URL 环境变量
+    const baseUrl = process.env.APP_BASE_URL || 'https://your-project.vercel.app'
     
     // Telegram Bot 深度链接
     const botLink = `https://t.me/${botUsername}?start=ref_${userId}`

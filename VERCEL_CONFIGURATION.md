@@ -31,12 +31,12 @@
 
 1. 在 Vercel Dashboard → **Settings** → **Secrets**
 2. 创建以下 Secrets：
-   - `supabase_url` = `https://crsbzrtjqxaeolvtqelg.supabase.co`
-   - `supabase_service_role_key` = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
-   - `telegram_token` = `7996291998:AAHlfhHrnHnycmYmdXCzQXQD0IHgNIJMBg8`
-   - `make_webhook_url` = `https://hook.us2.make.com/6xbib7m7edat288dd074myx7dy882imk`
-   - `bot_username` = `@huananren_bot`
-   - `app_base_url` = `https://your-project.vercel.app`（部署后更新）
+   - `supabase_url` = `YOUR_SUPABASE_URL`（从 Supabase 项目设置中获取）
+   - `supabase_service_role_key` = `YOUR_SUPABASE_SERVICE_ROLE_KEY`（从 Supabase 项目设置中获取）
+   - `telegram_token` = `YOUR_TELEGRAM_BOT_TOKEN`（从 @BotFather 获取）
+   - `make_webhook_url` = `YOUR_MAKE_WEBHOOK_URL`（从 Make.com 场景中获取）
+   - `bot_username` = `YOUR_BOT_USERNAME`（例如：@your_bot）
+   - `app_base_url` = `https://your-project.vercel.app`（部署后更新为实际 URL）
 
 #### 选项 B: 直接使用环境变量（更简单）
 
@@ -65,13 +65,20 @@
 在 Vercel Dashboard → **Project Settings** → **Environment Variables** 中添加：
 
 ```
-SUPABASE_URL = https://crsbzrtjqxaeolvtqelg.supabase.co
-SUPABASE_SERVICE_ROLE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNyc2J6cnRqcXhhZW9sdnRxZWxnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzY4MDY5NiwiZXhwIjoyMDc5MjU2Njk2fQ.SOD6GJqoMDydkhnut6uVZLLJ0IJWAm_QYtcLRzOjqMs
-TELEGRAM_BOT_TOKEN = 7996291998:AAHlfhHrnHnycmYmdXCzQXQD0IHgNIJMBg8
-TELEGRAM_BOT_USERNAME = @huananren_bot
-MAKE_WEBHOOK_URL = https://hook.us2.make.com/6xbib7m7edat288dd074myx7dy882imk
+SUPABASE_URL = YOUR_SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY = YOUR_SUPABASE_SERVICE_ROLE_KEY
+TELEGRAM_BOT_TOKEN = YOUR_TELEGRAM_BOT_TOKEN
+TELEGRAM_BOT_USERNAME = YOUR_BOT_USERNAME
+MAKE_WEBHOOK_URL = YOUR_MAKE_WEBHOOK_URL
 APP_BASE_URL = https://your-project.vercel.app
 ```
+
+**注意**：请将上述占位符替换为你的实际值：
+- `YOUR_SUPABASE_URL`: 从 Supabase 项目设置中获取
+- `YOUR_SUPABASE_SERVICE_ROLE_KEY`: 从 Supabase 项目设置中获取（Service Role Key）
+- `YOUR_TELEGRAM_BOT_TOKEN`: 从 @BotFather 获取
+- `YOUR_BOT_USERNAME`: 你的 Telegram Bot 用户名（例如：@your_bot）
+- `YOUR_MAKE_WEBHOOK_URL`: 从 Make.com 场景中获取的 Webhook URL
 
 **注意**: 
 - 选择 **Production, Preview, Development** 三个环境
@@ -96,8 +103,10 @@ APP_BASE_URL = https://your-project.vercel.app
 部署完成后，设置 Telegram Bot Webhook：
 
 ```bash
-curl -X POST "https://api.telegram.org/bot7996291998:AAHlfhHrnHnycmYmdXCzQXQD0IHgNIJMBg8/setWebhook?url=https://YOUR_DEPLOYMENT_URL/api/webhook&drop_pending_updates=true"
+curl -X POST "https://api.telegram.org/botYOUR_TELEGRAM_BOT_TOKEN/setWebhook?url=https://YOUR_DEPLOYMENT_URL/api/webhook&drop_pending_updates=true"
 ```
+
+**注意**：请将 `YOUR_TELEGRAM_BOT_TOKEN` 替换为你的实际 Telegram Bot Token。
 
 替换 `YOUR_DEPLOYMENT_URL` 为你的实际 Vercel 部署 URL。
 
@@ -146,7 +155,7 @@ git push origin main
 
 ### CORS 错误
 后端已配置 CORS，支持以下源：
-- `https://storied-raindrop-eb4089.netlify.app` (Netlify前端)
+- 通过 `ALLOWED_ORIGINS` 环境变量配置的前端域名（例如：`https://your-frontend.netlify.app`）
 - `http://localhost:3000` (本地开发)
 - `http://localhost:5173` (Vite开发服务器)
 

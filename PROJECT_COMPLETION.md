@@ -70,7 +70,7 @@ SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_ROLE_KEY=your_key
 TELEGRAM_TOKEN=your_bot_token
 BOT_USERNAME=your_bot_username
-APP_BASE_URL=https://my-ai-image-editor-fc7blcgqx-ez21502s-projects.vercel.app
+APP_BASE_URL=https://your-project.vercel.app
 MAKE_WEBHOOK_URL=your_make_webhook_url
 ```
 
@@ -106,7 +106,7 @@ git push origin master
 ## 🔗 访问链接
 
 ### 主应用
-https://my-ai-image-editor-fc7blcgqx-ez21502s-projects.vercel.app
+部署后从 Vercel Dashboard 获取你的应用 URL
 
 ### API 端点
 - 创建发票：`POST /api/create-invoice`

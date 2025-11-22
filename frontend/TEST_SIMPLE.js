@@ -8,7 +8,8 @@ console.log('VITE_ALLOW_NON_TELEGRAM:', import.meta.env.VITE_ALLOW_NON_TELEGRAM)
 console.log('VITE_PAYMENTS_BASE_URL:', import.meta.env.VITE_PAYMENTS_BASE_URL);
 
 // 测试API连接
-fetch('https://traemy-ai-image-editorxtor.vercel.app/api/balance?initData=dev_test_init_data_123456789')
+const apiUrl = import.meta.env.VITE_PAYMENTS_BASE_URL || 'http://localhost:3000/api';
+fetch(`${apiUrl}/balance?initData=dev_test_init_data_123456789`)
   .then(res => res.json())
   .then(data => {
     console.log('✅ API测试成功:', data);

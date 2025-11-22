@@ -65,7 +65,8 @@ export default function Home() {
   })
   
   // 使用默认后端URL，如果环境变量未设置
-  const paymentsBaseUrl = (import.meta.env.VITE_PAYMENTS_BASE_URL as string) || 'https://traemy-ai-image-editorxtor.vercel.app'
+  // 注意：生产环境必须设置 VITE_PAYMENTS_BASE_URL 环境变量
+  const paymentsBaseUrl = (import.meta.env.VITE_PAYMENTS_BASE_URL as string) || (import.meta.env.DEV ? 'http://localhost:3000/api' : '')
   
   // 检查支付配置
   useEffect(() => {

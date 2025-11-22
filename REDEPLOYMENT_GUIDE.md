@@ -19,8 +19,7 @@ git push origin master
 
 ### 3. 找到你的项目
 
-项目名：`my-ai-image-editor-fc7blcgqx-ez21502s-projects`
-项目域名：`my-ai-image-editor-fc7blcgqx-ez21502s-projects.vercel.app`
+在 Vercel Dashboard 中找到你的项目（项目名和域名会在部署后显示）
 
 ### 4. 配置环境变量
 
@@ -35,7 +34,7 @@ git push origin master
 - `BOT_USERNAME` = 你的 Telegram Bot 用户名
 
 #### 应用配置
-- `APP_BASE_URL` = https://my-ai-image-editor-fc7blcgqx-ez21502s-projects.vercel.app
+- `APP_BASE_URL` = 你的 Vercel 部署 URL（例如：`https://your-project.vercel.app`）
 - `MAKE_WEBHOOK_URL` = 你的 Make.com Webhook URL
 
 ### 5. 重新部署
@@ -87,7 +86,7 @@ git push origin master
 
 ### 前端配置更新
 前端已配置为使用新的 API 端点：
-- API 基础地址：`https://my-ai-image-editor-fc7blcgqx-ez21502s-projects.vercel.app/api`
+- API 基础地址：通过 `VITE_PAYMENTS_BASE_URL` 环境变量配置（例如：`https://your-project.vercel.app/api`）
 - 支付集成：支持 Telegram Stars
 - 推荐系统：完整的邀请奖励机制
 
@@ -101,13 +100,13 @@ git push origin master
 
 ## 🔧 验证部署
 
-部署完成后，访问以下地址验证：
+部署完成后，从 Vercel Dashboard 获取你的部署 URL，然后访问以下地址验证：
 
 ### 前端页面
-https://my-ai-image-editor-fc7blcgqx-ez21502s-projects.vercel.app
+`https://your-project.vercel.app`（替换为实际 URL）
 
 ### API 测试
-https://my-ai-image-editor-fc7blcgqx-ez21502s-projects.vercel.app/api/balance
+`https://your-project.vercel.app/api/balance`（替换为实际 URL）
 
 ### 预期响应
 ```json

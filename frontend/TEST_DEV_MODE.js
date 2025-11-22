@@ -13,8 +13,9 @@ console.log('VITE_MAKE_WEBHOOK_URL:', import.meta.env.VITE_MAKE_WEBHOOK_URL);
 // 测试API连接
 async function testAPIConnection() {
   console.log('🔗 测试API连接...');
+  const apiUrl = import.meta.env.VITE_PAYMENTS_BASE_URL || 'http://localhost:3000/api';
   try {
-    const response = await fetch('https://traemy-ai-image-editorxtor.vercel.app/api/balance?initData=dev_test_init_data_123456789');
+    const response = await fetch(`${apiUrl}/balance?initData=dev_test_init_data_123456789`);
     const data = await response.json();
     console.log('✅ API连接成功:', data);
     return data;
@@ -27,8 +28,13 @@ async function testAPIConnection() {
 // 测试webhook连接
 async function testWebhookConnection() {
   console.log('🔗 测试Webhook连接...');
+  const webhookUrl = import.meta.env.VITE_MAKE_WEBHOOK_URL;
+  if (!webhookUrl) {
+    console.warn('⚠️ VITE_MAKE_WEBHOOK_URL 未设置，跳过 webhook 测试');
+    return false;
+  }
   try {
-    const response = await fetch('https://hook.us2.make.com/6xbib7m7edat288dd074myx7dy882imk', {
+    const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
