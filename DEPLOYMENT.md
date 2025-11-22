@@ -8,7 +8,6 @@
   - 本地 `.env.local` 文件（不提交到仓库）
   - GitHub Secrets（用于 CI/CD）
   - Vercel Secrets/Environment Variables（用于生产环境）
-  - Netlify Environment Variables（用于前端部署）
 - ❌ **永远不要**将敏感信息提交到代码仓库
 
 ## 📋 环境变量清单
@@ -26,13 +25,22 @@
 | `MAKE_WEBHOOK_URL` | Make.com Webhook URL | Make.com 场景 → Webhook 模块 |
 | `APP_BASE_URL` | 应用部署 URL | 部署后从 Vercel Dashboard 获取 |
 
-### 前端环境变量（Netlify）
+### 前端环境变量（Vercel）
 
-以下变量需要在 Netlify Dashboard 中配置：
+以下变量需要在 Vercel Dashboard 中配置（构建时变量，以 `VITE_` 开头）：
 
-| 变量名 | 说明 | 示例值 |
-|--------|------|--------|
-| `VITE_PAYMENTS_BASE_URL` | 后端 API 基础 URL | `https://your-project.vercel.app/api` |
+| 变量名 | 说明 | 默认值 | 必需 |
+|--------|------|--------|------|
+| `VITE_PAYMENTS_BASE_URL` | 后端 API 基础 URL | `/api`（相对路径，同一域名） | 否 |
+| `VITE_MAKE_WEBHOOK_URL` | Make.com Webhook URL（用于备用处理） | - | 否 |
+| `VITE_TELEGRAM_BOT_USERNAME` | Telegram Bot 用户名（用于开发模式） | - | 否 |
+| `VITE_DEV_MODE` | 开发模式标志 | - | 否 |
+| `VITE_ALLOW_NON_TELEGRAM` | 允许非 Telegram 环境（用于开发） | - | 否 |
+
+**注意**：
+- 生产环境默认使用相对路径 `/api`（前后端同一域名，无需配置）
+- 如果需要跨域部署，可以设置 `VITE_PAYMENTS_BASE_URL` 为完整 URL
+- 开发环境自动使用 `http://localhost:3000/api`
 
 ## 🏠 本地开发配置
 
@@ -49,8 +57,8 @@ TELEGRAM_BOT_USERNAME=your_bot_username
 MAKE_WEBHOOK_URL=your_make_webhook_url
 APP_BASE_URL=http://localhost:3000
 
-# 前端环境变量
-VITE_PAYMENTS_BASE_URL=http://localhost:3000/api
+# 前端环境变量（可选，开发环境会自动使用 localhost）
+# VITE_PAYMENTS_BASE_URL=http://localhost:3000/api
 ```
 
 ### 2. 运行本地开发服务器
@@ -92,9 +100,13 @@ vercel dev
    - 访问 Vercel Dashboard → 项目 Settings → General
    - 在页面底部找到 Organization ID 和 Project ID
 
-## 🚀 Vercel 部署配置
+## 🚀 Vercel 全栈部署配置
 
-### 方法 1: 使用 Vercel Secrets（推荐）
+项目已配置为在 Vercel 上统一部署前后端，`vercel.json` 已包含完整的构建和路由配置。
+
+### 后端环境变量配置
+
+#### 方法 1: 使用 Vercel Secrets（推荐）
 
 1. 访问 Vercel Dashboard → 项目 → **Settings** → **Secrets**
 2. 创建以下 Secrets：
@@ -107,17 +119,25 @@ vercel dev
 
 3. `vercel.json` 会自动从这些 Secrets 读取值（使用 `@` 前缀）
 
-### 方法 2: 使用环境变量
+#### 方法 2: 使用环境变量
 
 1. 访问 Vercel Dashboard → 项目 → **Settings** → **Environment Variables**
 2. 添加所有后端环境变量（见上方清单）
 3. 选择应用环境：**Production**, **Preview**, **Development**
 
-## 🌐 Netlify 部署配置（前端）
+### 前端环境变量配置
 
-1. 访问 Netlify Dashboard → 项目 → **Site settings** → **Environment variables**
-2. 添加前端环境变量：
-   - `VITE_PAYMENTS_BASE_URL`
+1. 访问 Vercel Dashboard → 项目 → **Settings** → **Environment Variables**
+2. 添加前端环境变量（以 `VITE_` 开头）：
+   - `VITE_PAYMENTS_BASE_URL`（可选，默认使用相对路径 `/api`）
+   - `VITE_MAKE_WEBHOOK_URL`（如果需要）
+   - 其他前端环境变量（见上方清单）
+3. 选择应用环境：**Production**, **Preview**, **Development**
+
+**重要提示**：
+- 前端环境变量是**构建时变量**，需要在构建阶段可用
+- 生产环境默认使用相对路径 `/api`，前后端在同一域名，无需 CORS 配置
+- 如果前后端分离部署，需要设置 `VITE_PAYMENTS_BASE_URL` 为完整 URL，并配置 `ALLOWED_ORIGINS` 环境变量
 
 ## 🔄 CI/CD 流程
 
@@ -135,7 +155,7 @@ vercel dev
   2. 安装依赖
   3. 运行代码检查（lint）
   4. 构建前端
-  5. 部署到 Vercel（仅限 main/master 分支推送）
+  5. 部署到 Vercel（前后端统一部署，仅限 main/master 分支推送）
 
 ### 手动部署
 
@@ -163,7 +183,13 @@ vercel dev
 - Vercel Dashboard → Deployments
 - 确认最新部署状态为 **Ready**
 
-### 2. 测试 API 端点
+### 2. 测试前端部署
+
+访问部署 URL，确认前端页面正常加载：
+- 主页面：`https://your-project.vercel.app/`
+- 前端路由应正常工作
+
+### 3. 测试 API 端点
 
 ```bash
 # 健康检查
@@ -173,7 +199,7 @@ curl https://your-project.vercel.app/api/health
 curl "https://your-project.vercel.app/api/balance?initData=your_init_data"
 ```
 
-### 3. 配置 Telegram Bot Webhook
+### 4. 配置 Telegram Bot Webhook
 
 部署完成后，设置 Telegram Bot Webhook：
 
@@ -188,15 +214,20 @@ curl -X POST "https://api.telegram.org/botYOUR_TELEGRAM_BOT_TOKEN/setWebhook?url
 ### 部署失败
 
 1. **检查 Vercel 部署日志**：
-   - Vercel Dashboard → Deployments → 选择失败的部署 → View Function Logs
+   - Vercel Dashboard → Deployments → 选择失败的部署 → View Build Logs
+   - 检查前端构建是否成功
+   - 检查后端函数部署是否成功
 
 2. **验证环境变量**：
    - 确认所有必需的环境变量已正确配置
    - 检查变量名拼写是否正确
+   - 确认前端环境变量（`VITE_*`）已配置（如果需要）
 
-3. **检查代码**：
+3. **检查代码和配置**：
    - 确认代码已正确推送到 GitHub
    - 检查 `vercel.json` 配置是否正确
+   - 确认 `buildCommand` 和 `outputDirectory` 配置正确
+   - 检查前端 `package.json` 中的构建脚本
 
 ### API 端点不工作
 
@@ -212,13 +243,22 @@ curl -X POST "https://api.telegram.org/botYOUR_TELEGRAM_BOT_TOKEN/setWebhook?url
 
 ### CORS 错误
 
-后端已配置 CORS，支持以下源：
-- 通过 `ALLOWED_ORIGINS` 环境变量配置的域名（逗号分隔，例如：`https://your-frontend.netlify.app,https://your-frontend.vercel.app`）
-- `http://localhost:3000` (本地开发)
-- `http://localhost:5173` (Vite 开发服务器)
-- `http://127.0.0.1:3000` 和 `http://127.0.0.1:5173` (本地开发 IP)
+后端已配置 CORS，支持以下情况：
 
-**配置方法**：在 Vercel 环境变量中添加 `ALLOWED_ORIGINS`，值为逗号分隔的允许来源列表。
+1. **同源请求**（前后端在同一域名，推荐）：
+   - 自动允许，无需额外配置
+   - 生产环境默认使用相对路径 `/api`
+
+2. **跨域请求**（前后端分离部署）：
+   - 通过 `ALLOWED_ORIGINS` 环境变量配置允许的域名（逗号分隔）
+   - 例如：`https://your-frontend.netlify.app,https://your-frontend.vercel.app`
+   - 在 Vercel 环境变量中添加 `ALLOWED_ORIGINS`
+
+3. **本地开发**：
+   - 自动支持 `http://localhost:3000` 和 `http://localhost:5173`
+   - 自动支持 `http://127.0.0.1:3000` 和 `http://127.0.0.1:5173`
+
+**配置方法**：如果使用跨域部署，在 Vercel 环境变量中添加 `ALLOWED_ORIGINS`，值为逗号分隔的允许来源列表。
 
 ## 📚 相关文档
 

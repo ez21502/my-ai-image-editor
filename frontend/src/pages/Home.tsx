@@ -33,8 +33,8 @@ export default function Home() {
   const { isInTelegram: inTgFromProvider, initData, startParam, openInvoice, onInvoiceClosed, notificationHaptic } = useTMA()
   const [showTopUp, setShowTopUp] = useState(false)
   // 使用默认后端URL，如果环境变量未设置
-  // 注意：生产环境必须设置 VITE_PAYMENTS_BASE_URL 环境变量
-  const paymentsBaseUrl = (import.meta.env.VITE_PAYMENTS_BASE_URL as string) || (import.meta.env.DEV ? 'http://localhost:3000/api' : '')
+  // 生产环境默认使用相对路径（同一域名），开发环境使用 localhost
+  const paymentsBaseUrl = (import.meta.env.VITE_PAYMENTS_BASE_URL as string) || (import.meta.env.DEV ? 'http://localhost:3000/api' : '/api')
   
   // 使用统一的支付钩子
   const { credits, isLoading: isPaymentLoading, fetchBalance, createInvoice, consumeCredits } = usePayments(paymentsBaseUrl)

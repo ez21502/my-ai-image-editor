@@ -11,13 +11,47 @@ const ALLOWED_ORIGINS = [
 ]
 
 /**
+ * 检查是否为同源请求（前后端在同一域名）
+ */
+function isSameOrigin(req) {
+  const origin = req.headers.origin
+  const host = req.headers.host
+  const referer = req.headers.referer
+  
+  // 如果没有 Origin 头，可能是同源请求
+  if (!origin) {
+    return true
+  }
+  
+  // 如果 Origin 和 Host 匹配，则是同源请求
+  if (host && origin) {
+    try {
+      const originUrl = new URL(origin)
+      const hostUrl = host.startsWith('http') ? new URL(host) : { hostname: host.split(':')[0] }
+      if (originUrl.hostname === hostUrl.hostname) {
+        return true
+      }
+    } catch (e) {
+      // URL 解析失败，继续其他检查
+    }
+  }
+  
+  return false
+}
+
+/**
  * CORS 中间件
  */
 function corsMiddleware(req, res, next) {
   const origin = req.headers.origin
   
-  // 检查来源是否在允许列表中
-  if (ALLOWED_ORIGINS.includes(origin)) {
+  // 同源请求：允许所有同源请求（前后端在同一域名）
+  if (isSameOrigin(req)) {
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+    }
+  } else if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    // 跨域请求：检查是否在允许列表中
     res.setHeader('Access-Control-Allow-Origin', origin)
   }
   
@@ -40,7 +74,13 @@ function corsMiddleware(req, res, next) {
 function handleOptions(req, res) {
   const origin = req.headers.origin
   
-  if (ALLOWED_ORIGINS.includes(origin)) {
+  // 同源请求：允许所有同源请求（前后端在同一域名）
+  if (isSameOrigin(req)) {
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+    }
+  } else if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    // 跨域请求：检查是否在允许列表中
     res.setHeader('Access-Control-Allow-Origin', origin)
   }
   
@@ -55,5 +95,6 @@ function handleOptions(req, res) {
 module.exports = {
   corsMiddleware,
   handleOptions,
-  ALLOWED_ORIGINS
+  ALLOWED_ORIGINS,
+  isSameOrigin
 }
