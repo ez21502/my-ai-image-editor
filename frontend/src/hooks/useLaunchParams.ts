@@ -1,0 +1,3 @@
+import { useTMA } from '../providers/TMAProvider'
+export interface LaunchParams{initData:{user?:{id:number;first_name?:string;last_name?:string;username?:string;language_code?:string;is_premium?:boolean};query_id?:string;auth_date?:string;hash?:string}|null;startParam?:string;platform?:string}
+export const useLaunchParams=():LaunchParams=>{const{user,webApp,isInTelegram}=useTMA();if(!isInTelegram||!webApp){return{initData:null,startParam:undefined,platform:'web'}}return{initData:webApp.initDataUnsafe||null,startParam:undefined,platform:'telegram'}}

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI 图像重绘</title>
+    <!-- Telegram WebApp SDK - 智能加载策略 -->
+    <script>
+      (function() {
+        let retryCount = 0;
+        const maxRetries = 3;
+        function loadTelegramSDK() {
+          if (window.Telegram?.WebApp) { return; }
+          const script = document.createElement('script');
+          script.src = 'https://telegram.org/js/telegram-web-app.js';
+          script.async = true;
+          script.onload = function() { window.dispatchEvent(new CustomEvent('telegram-sdk-loaded')); };
+          script.onerror = function(e) {
+            retryCount++;
+            if (retryCount < maxRetries) {
+              setTimeout(loadTelegramSDK, 300 * retryCount);
+            } else {
+              loadLocalFallback();
+            }
+          };
+          const timeoutId = setTimeout(function() {
+            if (!window.Telegram?.WebApp) {
+              script.onerror(new Error('加载超时'));
+            }
+          }, 8000);
+          const originalOnload = script.onload;
+          script.onload = function() { clearTimeout(timeoutId); if (originalOnload) originalOnload(); };
+          document.head.appendChild(script);
+        }
+        function loadLocalFallback() {
+          const fallbackScript = document.createElement('script');
+          fallbackScript.src = '/telegram-web-app.js';
+          fallbackScript.async = true;
+          fallbackScript.onload = function() { window.dispatchEvent(new CustomEvent('telegram-sdk-loaded')); };
+          fallbackScript.onerror = function() { window.dispatchEvent(new CustomEvent('telegram-sdk-failed')); };
+          document.head.appendChild(fallbackScript);
+        }
+        const loadWithDelay = function() {
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadTelegramSDK);
+          } else {
+            setTimeout(loadTelegramSDK, 500);
+          }
+        }
+        if (window.Telegram?.WebApp) {
+          window.dispatchEvent(new CustomEvent('telegram-sdk-loaded'));
+        } else {
+          loadWithDelay();
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

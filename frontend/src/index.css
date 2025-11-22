@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes credit-deduction {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -20px) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -40px) scale(0.8);
+  }
+}
+
+.animate-credit-deduction {
+  animation: credit-deduction 1.5s ease-out forwards;
+}
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";line-height:1.5;font-weight:400;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+@media (max-width:768px){body{overflow-x:hidden}canvas{touch-action:none;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;-webkit-touch-callout:none}.fullscreen-canvas-mode{position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;background:linear-gradient(135deg,#1a1a1a 0%,#2d2d2d 100%)}.landscape-image-container{display:flex;align-items:center;justify-content:center;width:100%;max-width:100%;background:transparent;position:relative;overflow:hidden;margin:0 auto;padding:0}.canvas-container{background:transparent !important;box-shadow:0 4px 20px rgba(0,0,0,.3);position:relative;display:flex;align-items:center;justify-content:center;width:100%;max-width:100%;height:auto;margin:0 auto}.canvas-container canvas{max-width:100% !important;height:auto !important;display:block;margin:0 auto !important;image-rendering:crisp-edges;object-fit:contain}@media (max-width:768px){.landscape-image-container{max-height:60vh;width:98%}.canvas-container{max-height:60vh;width:100%}.canvas-container canvas{max-height:60vh !important}}@media (max-width:640px){.landscape-image-container{max-height:55vh;width:98%}.canvas-container{max-height:55vh}.canvas-container canvas{max-height:55vh !important}}}
+@media screen and (min-width:1024px){html,body{overflow-x:hidden}.app-desktop-container{max-width:1280px;margin-left:auto;margin-right:auto;padding-left:1rem;padding-right:1rem}.desktop-fixed-bar{left:0;right:0;max-width:1280px;margin-left:auto;margin-right:auto}.landscape-image-container{max-width:100%}.canvas-container{max-width:960px;margin-left:auto;margin-right:auto}}
