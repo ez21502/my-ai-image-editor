@@ -12,6 +12,55 @@ export interface PaymentHook {
   openPaymentModal: (sku: string) => Promise<boolean>
 }
 
+// 安全提取错误消息的辅助函数
+const extractErrorMessage = (error: any): string => {
+  if (!error) return '未知错误'
+  
+  // 如果是字符串，直接返回
+  if (typeof error === 'string') return error
+  
+  // 如果是 Error 对象，返回 message
+  if (error instanceof Error) return error.message
+  
+  // 如果是对象，尝试提取常见字段
+  if (typeof error === 'object') {
+    // 尝试提取 details 字段
+    if (error.details) {
+      const detailsMsg = extractErrorMessage(error.details)
+      if (detailsMsg !== '未知错误') return detailsMsg
+    }
+    
+    // 尝试提取 error 字段
+    if (error.error) {
+      const errorMsg = extractErrorMessage(error.error)
+      if (errorMsg !== '未知错误') return errorMsg
+    }
+    
+    // 尝试提取 message 字段
+    if (error.message) {
+      const message = extractErrorMessage(error.message)
+      if (message !== '未知错误') return message
+    }
+    
+    // 尝试提取 description 字段
+    if (error.description) {
+      const desc = extractErrorMessage(error.description)
+      if (desc !== '未知错误') return desc
+    }
+    
+    // 如果都没有，尝试 JSON 序列化（但限制长度）
+    try {
+      const jsonStr = JSON.stringify(error)
+      return jsonStr.length > 200 ? jsonStr.substring(0, 200) + '...' : jsonStr
+    } catch {
+      return '未知错误（无法解析错误信息）'
+    }
+  }
+  
+  // 其他情况，转换为字符串
+  return String(error)
+}
+
 export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
   const { initData, openInvoice, notificationHaptic } = useTMA()
   const [credits, setCredits] = useState<number | null>(null)
@@ -59,10 +108,18 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
     }
   }, [initData, paymentsBaseUrl])
 
-  const createInvoice = useCallback(async (sku: string): Promise<string | null> => {
+  const createInvoice = useCallback(async (sku: string, retryCount = 0): Promise<string | null> => {
+    const MAX_RETRIES = 2
+    const RETRY_DELAY = 1000 // 1秒
+    
     if (!paymentsBaseUrl) {
-      console.error('createInvoice: paymentsBaseUrl为空', { paymentsBaseUrl, env: import.meta.env.VITE_PAYMENTS_BASE_URL })
-      toast.error('支付配置错误：缺少支付基础URL')
+      console.error('createInvoice: paymentsBaseUrl为空', { 
+        paymentsBaseUrl, 
+        env: import.meta.env.VITE_PAYMENTS_BASE_URL 
+      })
+      toast.error('支付配置错误：缺少支付基础URL', {
+        description: '请检查环境变量 VITE_PAYMENTS_BASE_URL 是否正确配置'
+      })
       return null
     }
 
@@ -71,33 +128,129 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
     const testInitData = isDevMode ? 'dev_test_init_data_123456789' : initData
     
     if (!testInitData) {
-      toast.error('支付配置错误：需要Telegram认证')
+      toast.error('支付配置错误：需要Telegram认证', {
+        description: '请在Telegram环境中使用此功能，或启用开发模式'
+      })
       return null
     }
 
     try {
-      const response = await fetch(`${paymentsBaseUrl}/api/create-invoice`, {
+      const apiUrl = `${paymentsBaseUrl}/api/create-invoice`
+      console.log('createInvoice: 请求创建发票', { 
+        apiUrl, 
+        sku, 
+        hasInitData: !!testInitData,
+        isDevMode,
+        retryCount
+      })
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({ initData: testInitData, sku })
       })
 
-      const data = await response.json()
-      
-      if (data.success) {
-        return data.invoiceLink
-      } else {
-        // 开发模式下模拟支付链接
-        if (isDevMode && data.error === 'Invalid initData') {
+      // 检查响应状态
+      if (!response.ok) {
+        const errorText = await response.text()
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: errorText || `HTTP ${response.status}` }
+        }
+
+        console.error('createInvoice: API返回错误', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        })
+
+        // 如果是网络错误且还有重试次数，进行重试
+        if (response.status >= 500 && retryCount < MAX_RETRIES) {
+          console.log(`createInvoice: 服务器错误，${RETRY_DELAY}ms后重试 (${retryCount + 1}/${MAX_RETRIES})`)
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
+          return createInvoice(sku, retryCount + 1)
+        }
+
+        // 开发模式下特殊处理
+        if (isDevMode && (errorData.error?.includes('Invalid initData') || response.status === 401)) {
+          console.log('createInvoice: 开发模式 - 使用模拟支付链接')
           toast.success('开发模式：模拟支付链接创建成功')
           return `https://t.me/${import.meta.env.VITE_TELEGRAM_BOT_USERNAME || '@test_bot'}?start=invoice_${Date.now()}`
         }
-        toast.error(`创建发票失败: ${data.error}`)
+
+        // 安全提取错误消息
+        const errorMessage = extractErrorMessage(errorData.details || errorData.error || errorData || `HTTP ${response.status}`)
+        const errorDescription = errorData.error && typeof errorData.error === 'string' && errorData.error !== errorMessage 
+          ? errorData.error 
+          : undefined
+        
+        console.error('createInvoice: API返回错误详情', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+          extractedMessage: errorMessage
+        })
+        
+        toast.error(`创建发票失败: ${errorMessage}`, {
+          description: errorDescription
+        })
+        return null
+      }
+
+      const data = await response.json()
+      console.log('createInvoice: API响应', { success: data.success, hasInvoiceLink: !!data.invoiceLink })
+      
+      if (data.success && data.invoiceLink) {
+        console.log('createInvoice: 发票创建成功', { invoiceLink: data.invoiceLink.substring(0, 50) + '...' })
+        return data.invoiceLink
+      } else {
+        // 开发模式下模拟支付链接
+        if (isDevMode) {
+          console.log('createInvoice: 开发模式 - 使用模拟支付链接')
+          toast.success('开发模式：模拟支付链接创建成功')
+          return `https://t.me/${import.meta.env.VITE_TELEGRAM_BOT_USERNAME || '@test_bot'}?start=invoice_${Date.now()}`
+        }
+
+        // 安全提取错误消息
+        const errorMessage = extractErrorMessage(data.details || data.error || data || '未知错误')
+        console.error('createInvoice: API返回失败', { 
+          error: errorMessage, 
+          rawData: data,
+          extractedMessage: errorMessage
+        })
+        toast.error(`创建发票失败: ${errorMessage}`)
         return null
       }
     } catch (error) {
-      console.error('Error creating invoice:', error)
-      toast.error('创建支付链接失败')
+      console.error('createInvoice: 网络错误', { 
+        error: error instanceof Error ? error.message : String(error),
+        sku,
+        retryCount
+      })
+
+      // 如果是网络错误且还有重试次数，进行重试
+      if (retryCount < MAX_RETRIES) {
+        console.log(`createInvoice: 网络错误，${RETRY_DELAY}ms后重试 (${retryCount + 1}/${MAX_RETRIES})`)
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
+        return createInvoice(sku, retryCount + 1)
+      }
+
+      // 开发模式下模拟支付链接
+      if (isDevMode) {
+        console.log('createInvoice: 开发模式 - 网络错误时使用模拟支付链接')
+        toast.warning('开发模式：网络错误，使用模拟支付链接')
+        return `https://t.me/${import.meta.env.VITE_TELEGRAM_BOT_USERNAME || '@test_bot'}?start=invoice_${Date.now()}`
+      }
+
+      const errorMessage = error instanceof Error ? error.message : '网络连接失败'
+      toast.error('创建支付链接失败', {
+        description: `${errorMessage}。请检查网络连接后重试。`
+      })
       return null
     }
   }, [initData, paymentsBaseUrl])
@@ -174,46 +327,111 @@ export const usePayments = (paymentsBaseUrl: string): PaymentHook => {
     const isDevMode = import.meta.env.VITE_DEV_MODE === 'true' || import.meta.env.VITE_ALLOW_NON_TELEGRAM === 'true'
     
     if (!openInvoice && !isDevMode) {
-      toast.error('支付功能不可用')
+      toast.error('支付功能不可用', {
+        description: '请在Telegram环境中使用此功能'
+      })
       return false
     }
 
-    const invoiceLink = await createInvoice(sku)
-    if (!invoiceLink) {
-      return false
-    }
+    console.log('openPaymentModal: 开始创建支付链接', { sku, isDevMode, hasOpenInvoice: !!openInvoice })
 
-    // 开发模式下模拟支付过程
-    if (isDevMode && !openInvoice) {
-      toast.success('开发模式：模拟支付成功！')
-      // 模拟支付成功，增加积分
-      setCredits((prev) => (prev || 0) + parseInt(sku.replace('pack', '')))
-      return Promise.resolve(true)
-    }
-
-    return new Promise((resolve) => {
-      if (!openInvoice) {
-        resolve(false)
-        return
+    try {
+      const invoiceLink = await createInvoice(sku)
+      if (!invoiceLink) {
+        console.error('openPaymentModal: 创建支付链接失败')
+        return false
       }
-      
-      openInvoice(invoiceLink, (status: string) => {
-        notificationHaptic('success')
-        
-        if (status === 'paid') {
-          toast.success('支付成功！')
-          // 刷新余额
+
+      console.log('openPaymentModal: 支付链接创建成功', { invoiceLink: invoiceLink.substring(0, 50) + '...' })
+
+      // 开发模式下模拟支付过程
+      if (isDevMode && !openInvoice) {
+        console.log('openPaymentModal: 开发模式 - 模拟支付成功')
+        toast.success('开发模式：模拟支付成功！', {
+          description: '已自动增加积分'
+        })
+        // 模拟支付成功，增加积分
+        const creditsToAdd = parseInt(sku.replace('pack', '')) || 30
+        setCredits((prev) => (prev || 0) + creditsToAdd)
+        // 延迟刷新余额以确保状态更新
+        setTimeout(() => {
           fetchBalance()
-          resolve(true)
-        } else if (status === 'cancelled') {
-          toast.info('支付已取消')
-          resolve(false)
-        } else {
-          toast.error('支付失败')
+        }, 500)
+        return true
+      }
+
+      if (!openInvoice) {
+        console.error('openPaymentModal: openInvoice函数不可用')
+        toast.error('支付功能不可用', {
+          description: '无法打开支付窗口，请确保在Telegram环境中使用'
+        })
+        return false
+      }
+
+      // 验证发票链接格式
+      if (!invoiceLink || typeof invoiceLink !== 'string' || !invoiceLink.startsWith('https://')) {
+        console.error('openPaymentModal: 无效的发票链接格式', { invoiceLink })
+        toast.error('支付链接无效', {
+          description: '发票链接格式不正确，请重试'
+        })
+        return false
+      }
+
+      return new Promise((resolve) => {
+        console.log('openPaymentModal: 打开支付窗口', { 
+          invoiceLink: invoiceLink.substring(0, 50) + '...',
+          linkLength: invoiceLink.length
+        })
+        
+        try {
+          openInvoice(invoiceLink, (status: string) => {
+            console.log('openPaymentModal: 支付状态回调', { status })
+            
+            if (status === 'paid') {
+              notificationHaptic('success')
+              toast.success('支付成功！', {
+                description: '积分已添加到您的账户'
+              })
+              // 刷新余额
+              setTimeout(() => {
+                fetchBalance()
+              }, 1000) // 延迟一点确保后端已处理
+              resolve(true)
+            } else if (status === 'cancelled') {
+              notificationHaptic('warning')
+              toast.info('支付已取消')
+              resolve(false)
+            } else {
+              console.error('openPaymentModal: 支付失败', { status })
+              notificationHaptic('error')
+              toast.error('支付失败', {
+                description: `支付状态: ${status}`
+              })
+              resolve(false)
+            }
+          })
+        } catch (error) {
+          console.error('openPaymentModal: 打开支付窗口时出错', { 
+            error: error instanceof Error ? error.message : String(error),
+            invoiceLink: invoiceLink.substring(0, 50) + '...'
+          })
+          notificationHaptic('error')
+          toast.error('无法打开支付窗口', {
+            description: error instanceof Error ? error.message : '未知错误'
+          })
           resolve(false)
         }
       })
-    })
+    } catch (error) {
+      console.error('openPaymentModal: 意外错误', { 
+        error: error instanceof Error ? error.message : String(error),
+        sku 
+      })
+      toast.error('支付过程出错', {
+        description: error instanceof Error ? error.message : '未知错误'
+      })
+      return false
+    }
   }, [openInvoice, createInvoice, notificationHaptic, fetchBalance])
 
   return {

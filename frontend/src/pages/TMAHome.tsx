@@ -76,7 +76,7 @@ export default function Home() {
   }, [isInTelegram, paymentsBaseUrl])
   
   // 使用统一的支付钩子
-  const { credits, isLoading: isPaymentLoading, isProcessing: isPaymentProcessing, fetchBalance, createInvoice, consumeCredits } = usePayments(paymentsBaseUrl)
+  const { credits, isLoading: isPaymentLoading, isProcessing: isPaymentProcessing, fetchBalance, createInvoice, consumeCredits, openPaymentModal } = usePayments(paymentsBaseUrl)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
@@ -114,23 +114,24 @@ export default function Home() {
   }, [isInTelegram, initData, fetchBalance, isDevEnvironment])
   useEffect(() => { onInvoiceClosed(()=>{ fetchBalance(); notificationHaptic('success') }) }, [onInvoiceClosed, notificationHaptic, fetchBalance])
 
-  // 创建发票处理函数
-  const handleCreateInvoice = useCallback(async (sku: string) => {
-    const invoiceLink = await createInvoice(sku)
-    if (invoiceLink && openInvoice) {
-      openInvoice(invoiceLink, (status) => {
-        if (status === 'paid') {
-          fetchBalance()
-          setShowTopUp(false)
-          toast.success('支付成功')
-          notificationHaptic('success')
-        } else {
-          toast.error('支付取消')
-          notificationHaptic('error')
-        }
+  // 使用统一的支付方法处理套餐选择
+  const handleSelectPackage = useCallback(async (sku: string): Promise<boolean> => {
+    try {
+      const success = await openPaymentModal(sku)
+      if (success) {
+        setShowTopUp(false)
+        notificationHaptic('success')
+      }
+      return success
+    } catch (error) {
+      console.error('Payment error:', error)
+      toast.error('支付过程出错', {
+        description: error instanceof Error ? error.message : '未知错误'
       })
+      notificationHaptic('error')
+      return false
     }
-  }, [createInvoice, openInvoice, fetchBalance, notificationHaptic])
+  }, [openPaymentModal, notificationHaptic])
 
   // 充值套餐数据
   const PACKAGES = [
@@ -1656,15 +1657,23 @@ export default function Home() {
               onClick={async () => {
                 setIsProcessingPayment(true)
                 try {
-                  await handleCreateInvoice(selectedPackage)
+                  const success = await handleSelectPackage(selectedPackage)
+                  if (success) {
+                    // 支付成功，模态框会在 handleSelectPackage 中关闭
+                  }
+                } catch (error) {
+                  console.error('Payment button error:', error)
+                  toast.error('支付过程出错', {
+                    description: error instanceof Error ? error.message : '未知错误'
+                  })
                 } finally {
                   setIsProcessingPayment(false)
                 }
               }}
               className="flex-1"
-              disabled={isProcessingPayment}
+              disabled={isProcessingPayment || isPaymentProcessing}
             >
-              {isProcessingPayment ? (
+              {isProcessingPayment || isPaymentProcessing ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   处理中...

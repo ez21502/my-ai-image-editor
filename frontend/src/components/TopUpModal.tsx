@@ -30,10 +30,13 @@ export const TopUpModal: React.FC<TopUpModalProps> = ({
     try {
       const success = await onSelectPackage(selectedPackage)
       if (success) {
+        // 支付成功，关闭模态框
         onClose()
       }
+      // 如果失败，保持模态框打开，让用户重试或选择其他套餐
     } catch (error) {
       console.error('Purchase error:', error)
+      // 错误已由 onSelectPackage 处理，这里只记录日志
     } finally {
       setIsLoading(false)
     }

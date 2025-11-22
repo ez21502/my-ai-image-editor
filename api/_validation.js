@@ -140,12 +140,45 @@ function validateRequiredFields(body, requiredFields) {
 
 /**
  * 统一的错误响应格式
+ * 确保 error 和 details 始终是字符串
  */
 function createErrorResponse(error, details = null) {
+  // 确保 error 是字符串
+  let errorStr = error
+  if (typeof error !== 'string') {
+    if (error instanceof Error) {
+      errorStr = error.message
+    } else if (error && typeof error === 'object') {
+      try {
+        errorStr = JSON.stringify(error)
+      } catch {
+        errorStr = String(error)
+      }
+    } else {
+      errorStr = String(error || 'Unknown error')
+    }
+  }
+  
+  // 确保 details 是字符串或 null
+  let detailsStr = details
+  if (details !== null && typeof details !== 'string') {
+    if (details instanceof Error) {
+      detailsStr = details.message
+    } else if (details && typeof details === 'object') {
+      try {
+        detailsStr = JSON.stringify(details)
+      } catch {
+        detailsStr = String(details)
+      }
+    } else {
+      detailsStr = String(details)
+    }
+  }
+  
   return {
     success: false,
-    error: error,
-    details: details,
+    error: errorStr,
+    details: detailsStr,
     timestamp: new Date().toISOString()
   }
 }

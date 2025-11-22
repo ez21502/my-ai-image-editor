@@ -9,42 +9,57 @@ module.exports = async (req, res) => {
   const requestId = Math.random().toString(36).substr(2, 9)
   const logger = createLogger('create-invoice', requestId)
   
-  // 应用 CORS 中间件
-  corsMiddleware(req, res, () => {})
-  
-  // 处理 OPTIONS 预检请求
+  // 处理 OPTIONS 预检请求（必须在CORS中间件之前）
   if (req.method === 'OPTIONS') {
     return handleOptions(req, res)
   }
   
+  // 应用 CORS 中间件
+  corsMiddleware(req, res, () => {})
+  
   if (req.method !== 'POST') {
-    logger.warn('Method not allowed', { method: req.method })
-    return res.status(405).json(createErrorResponse('Method not allowed'))
+    logger.warn('Method not allowed', { method: req.method, url: req.url })
+    return res.status(405).json(createErrorResponse('Method not allowed', `Expected POST, got ${req.method}`))
   }
 
   try {
     const { initData, sku } = req.body
     
-    logger.info('Creating invoice', { userId: 'unknown', sku, isTestMode: isTestMode() })
+    logger.info('Creating invoice request received', { 
+      hasInitData: !!initData, 
+      sku, 
+      isTestMode: isTestMode(),
+      requestId 
+    })
     
     // 输入验证
     const requiredValidation = validateRequiredFields(req.body, ['initData', 'sku'])
     if (!requiredValidation.valid) {
-      logger.warn('Validation failed', { error: requiredValidation.error })
+      logger.warn('Validation failed - missing required fields', { 
+        error: requiredValidation.error,
+        body: { hasInitData: !!req.body.initData, hasSku: !!req.body.sku }
+      })
       return res.status(400).json(createErrorResponse('Validation failed', requiredValidation.error))
     }
     
     // 验证 SKU
     const skuValidation = validateSKU(sku)
     if (!skuValidation.valid) {
-      return res.status(400).json(createErrorResponse('Validation failed', skuValidation.error))
+      logger.warn('Validation failed - invalid SKU', { sku, error: skuValidation.error })
+      return res.status(400).json(createErrorResponse('Invalid SKU', skuValidation.error))
     }
 
     // 获取 Telegram Bot Token（必须在所有模式下都可用）
     const token = process.env.TELEGRAM_BOT_TOKEN
     if (!token) {
-      logger.error('Missing TELEGRAM_BOT_TOKEN configuration')
-      return res.status(500).json(createErrorResponse('Server configuration error: Missing TELEGRAM_BOT_TOKEN'))
+      logger.error('Missing TELEGRAM_BOT_TOKEN configuration', {
+        hasToken: !!process.env.TELEGRAM_BOT_TOKEN,
+        envKeys: Object.keys(process.env).filter(k => k.includes('TELEGRAM'))
+      })
+      return res.status(500).json(createErrorResponse(
+        'Server configuration error', 
+        'Missing TELEGRAM_BOT_TOKEN. Please configure the bot token in environment variables.'
+      ))
     }
 
     // 开发模式支持
@@ -52,42 +67,68 @@ module.exports = async (req, res) => {
     
     if (!isDevMode) {
       // 验证 initData
-      if (!verifyInitData(initData, token)) {
-        return res.status(401).json(createErrorResponse('Invalid initData'))
+      const isValidInitData = verifyInitData(initData, token)
+      if (!isValidInitData) {
+        logger.warn('Invalid initData', { 
+          hasInitData: !!initData,
+          initDataLength: initData?.length,
+          initDataPreview: initData?.substring(0, 50)
+        })
+        return res.status(401).json(createErrorResponse(
+          'Invalid initData', 
+          'The provided initData is invalid or has been tampered with. Please ensure you are using the app from Telegram.'
+        ))
       }
+    } else {
+      logger.info('Development mode detected', { requestId })
     }
 
     let userId
     if (isDevMode) {
       // 开发模式使用固定用户ID
       userId = 123456789
-      logger.info('Development mode detected', { userId })
+      logger.info('Development mode - using test user ID', { userId })
     } else {
       userId = getUserIdFromInitData(initData)
       if (!userId) {
-        logger.warn('Cannot extract user ID from initData')
-        return res.status(400).json(createErrorResponse('Cannot extract user ID'))
+        logger.warn('Cannot extract user ID from initData', {
+          hasInitData: !!initData,
+          initDataPreview: initData?.substring(0, 100)
+        })
+        return res.status(400).json(createErrorResponse(
+          'Cannot extract user ID', 
+          'Unable to extract user ID from initData. Please ensure you are using the app from Telegram.'
+        ))
       }
     }
     
-    logger.info('Invoice creation validated', { userId, sku })
+    logger.info('Invoice creation validated', { userId, sku, isDevMode })
     
     // 设置用户ID用于速率限制
     req.userId = userId
     
     // 应用速率限制
-    const rateLimitMiddleware = invoiceRateLimiter.middleware('invoice')
-    let rateLimitError = null
-    
-    // 手动调用速率限制中间件
-    rateLimitMiddleware(req, res, (error) => {
-      if (error) {
-        rateLimitError = error
+    try {
+      const rateLimitMiddleware = invoiceRateLimiter.middleware('invoice')
+      let rateLimitPassed = false
+      
+      // 手动调用速率限制中间件
+      rateLimitMiddleware(req, res, (error) => {
+        if (error) {
+          logger.warn('Rate limit exceeded', { userId, error: error.message })
+          // 速率限制中间件已经发送了响应
+          return
+        }
+        rateLimitPassed = true
+      })
+      
+      // 如果速率限制失败，中间件已经发送响应，直接返回
+      if (!rateLimitPassed && res.headersSent) {
+        return
       }
-    })
-    
-    if (rateLimitError) {
-      return // 速率限制中间件已经发送了响应
+    } catch (rateLimitError) {
+      logger.error('Rate limit middleware error', { userId, error: rateLimitError.message })
+      // 继续处理，不阻止请求
     }
 
     // 获取商品配置（支持测试SKU）
@@ -100,11 +141,25 @@ module.exports = async (req, res) => {
     }
     
     if (!mapping) {
-      return res.status(400).json(createErrorResponse('Invalid SKU'))
+      logger.warn('Invalid SKU - no mapping found', { userId, sku, availableSKUs: Object.keys(SKU_MAP) })
+      return res.status(400).json(createErrorResponse(
+        'Invalid SKU', 
+        `SKU "${sku}" is not available. Valid options: ${Object.keys(SKU_MAP).join(', ')}`
+      ))
     }
 
     // 调用 Telegram Bot API 创建发票链接
     const botApiUrl = `https://api.telegram.org/bot${token}/createInvoiceLink`
+    
+    // 验证价格数据
+    if (!mapping.xtr || mapping.xtr <= 0) {
+      logger.error('Invalid XTR amount', { userId, sku, xtr: mapping.xtr })
+      return res.status(400).json(createErrorResponse(
+        'Invalid price configuration', 
+        `Invalid XTR amount for SKU ${sku}: ${mapping.xtr}`
+      ))
+    }
+    
     const invoiceData = {
       title: 'AI图片编辑算力点',
       description: `${mapping.label} - 可用于AI图片重绘`,
@@ -116,34 +171,136 @@ module.exports = async (req, res) => {
         amount: mapping.xtr // Stars数量
       }]
     }
+    
+    // 验证发票数据完整性
+    if (!invoiceData.title || !invoiceData.description || !invoiceData.payload) {
+      logger.error('Invalid invoice data', { userId, sku, invoiceData })
+      return res.status(500).json(createErrorResponse(
+        'Invalid invoice configuration', 
+        'Missing required invoice fields'
+      ))
+    }
 
-    const response = await fetch(botApiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(invoiceData)
+    logger.debug('Calling Telegram Bot API', { 
+      botApiUrl: botApiUrl.replace(token, '***'),
+      invoiceData: { ...invoiceData, payload: '***' }
     })
 
-    const result = await response.json()
+    let response
+    let result
+    
+    try {
+      response = await fetch(botApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(invoiceData)
+      })
+
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        try {
+          const errorText = await response.text()
+          // 尝试解析为 JSON 以获取更详细的错误信息
+          try {
+            const errorJson = JSON.parse(errorText)
+            if (errorJson.description) {
+              errorMessage = errorJson.description
+            } else if (errorJson.error_code) {
+              errorMessage = `Error ${errorJson.error_code}: ${errorJson.description || 'Unknown error'}`
+            } else {
+              errorMessage = errorText.substring(0, 200) || errorMessage
+            }
+          } catch {
+            // 如果不是 JSON，使用原始文本（限制长度）
+            errorMessage = errorText.substring(0, 200) || errorMessage
+          }
+        } catch (e) {
+          logger.warn('Failed to read error response body', { error: e.message })
+        }
+        
+        logger.error('Telegram Bot API HTTP error', { 
+          userId, 
+          sku, 
+          status: response.status,
+          statusText: response.statusText,
+          errorMessage
+        })
+        return res.status(500).json(createErrorResponse(
+          'Failed to create invoice', 
+          errorMessage
+        ))
+      }
+
+      result = await response.json()
+    } catch (fetchError) {
+      logger.error('Telegram Bot API fetch error', { 
+        userId, 
+        sku, 
+        error: fetchError.message,
+        stack: fetchError.stack
+      })
+      return res.status(500).json(createErrorResponse(
+        'Failed to create invoice', 
+        `Network error: ${fetchError.message}. Please check your internet connection and try again.`
+      ))
+    }
 
     if (!result.ok) {
-      logger.error('Bot API error', { userId, sku, error: result.description || 'Unknown error' })
-      return res.status(500).json(createErrorResponse('Failed to create invoice', result.description || 'Unknown error'))
+      // 安全提取错误消息
+      const errorDescription = result.description || result.error_code 
+        ? `Error ${result.error_code}: ${result.description || 'Unknown error'}` 
+        : 'Unknown error from Telegram API'
+      
+      logger.error('Bot API error response', { 
+        userId, 
+        sku, 
+        error: errorDescription,
+        errorCode: result.error_code,
+        fullResponse: result
+      })
+      return res.status(500).json(createErrorResponse(
+        'Failed to create invoice', 
+        errorDescription
+      ))
+    }
+
+    if (!result.result) {
+      logger.error('Bot API returned no invoice link', { userId, sku, result })
+      return res.status(500).json(createErrorResponse(
+        'Failed to create invoice', 
+        'Telegram API did not return an invoice link'
+      ))
     }
 
     logAudit({
       userId,
       action: 'invoice_created',
-      details: { sku, xtrAmount: mapping.xtr, credits: mapping.credits }
+      details: { sku, xtrAmount: mapping.xtr, credits: mapping.credits, invoiceLink: result.result }
     })
 
-    logger.info('Invoice created successfully', { userId, sku, invoiceLink: result.result })
+    logger.info('Invoice created successfully', { 
+      userId, 
+      sku, 
+      invoiceLink: result.result,
+      xtrAmount: mapping.xtr,
+      credits: mapping.credits
+    })
 
     return res.status(200).json(createSuccessResponse({ 
       invoiceLink: result.result 
     }))
 
   } catch (error) {
-    logger.error('Create invoice error', { userId: 'unknown', sku: req.body?.sku, error: error.message })
-    return res.status(500).json(createErrorResponse('Internal server error', error.message))
+    logger.error('Create invoice unexpected error', { 
+      userId: req.userId || 'unknown', 
+      sku: req.body?.sku, 
+      error: error.message,
+      stack: error.stack,
+      requestId
+    })
+    return res.status(500).json(createErrorResponse(
+      'Internal server error', 
+      process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred. Please try again later.'
+    ))
   }
 }
