@@ -111,7 +111,11 @@ function getStartParam(initData) {
 async function ensureUserWithWelcomeCredit(userId) { 
   const { data } = await SUPABASE.from('user_credits').select('credits').eq('telegram_user_id', userId).limit(1).maybeSingle(); 
   if (data) return data.credits; 
-  await SUPABASE.from('user_credits').insert({ telegram_user_id: userId, credits: 3 }); 
+  const { error } = await SUPABASE.from('user_credits').insert({ telegram_user_id: userId, credits: 3 }); 
+  if (error) {
+    console.error('Failed to create user with welcome credit:', error);
+    throw new Error(`Failed to create user: ${error.message}`);
+  }
   return 3 
 }
 

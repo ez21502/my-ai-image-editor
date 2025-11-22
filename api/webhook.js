@@ -1,4 +1,4 @@
-const { SUPABASE, verifyInitData, getUserIdFromInitData, addCredits } = require('./_shared')
+const { SUPABASE, verifyInitData, getUserIdFromInitData, addCredits, ensureUserWithWelcomeCredit } = require('./_shared')
 const { createLogger, logAudit } = require('./_shared')
 const { corsMiddleware, handleOptions } = require('./_cors')
 
@@ -140,6 +140,9 @@ module.exports = async (req, res) => {
       paymentRecorded = true
       logger.info('Payment recorded successfully', { userId, creditsAdded: mapping.credits, xtrAmount: mapping.xtr })
 
+      // 确保新用户有欢迎积分（如果是新用户，会自动创建并赠送3点算力）
+      await ensureUserWithWelcomeCredit(userId)
+      
       // 为用户添加积分
       newBalance = await addCredits(userId, mapping.credits)
       creditsAdded = true

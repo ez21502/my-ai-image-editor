@@ -11,7 +11,9 @@ create table if not exists payments (
   credits_added int not null,
   paid_at timestamptz not null,
   payment_ref text unique,
-  payload jsonb
+  payload jsonb,
+  status text default 'pending',
+  error text
 );
 
 create table if not exists referrals (

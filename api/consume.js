@@ -1,4 +1,4 @@
-const { SUPABASE, getUserIdFromInitData, consumeOneCredit, verifyInitData } = require('./_shared')
+const { SUPABASE, getUserIdFromInitData, consumeOneCredit, verifyInitData, ensureUserWithWelcomeCredit } = require('./_shared')
 const { validateRequiredFields, validateBase64Image, validatePrompt, validateChatId, createErrorResponse, createSuccessResponse } = require('./_validation')
 const { consumeRateLimiter } = require('./_rateLimit')
 const { createLoggingMiddleware } = require('./_shared')
@@ -114,6 +114,9 @@ module.exports = async (req, res) => {
         development_mode: true
       }))
     }
+
+    // 确保新用户有欢迎积分（如果是新用户，会自动创建并赠送3点算力）
+    await ensureUserWithWelcomeCredit(userId)
 
     // 消耗一个积分
     const ok = await consumeOneCredit(userId)

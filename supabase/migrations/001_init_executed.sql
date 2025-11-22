@@ -15,7 +15,9 @@ CREATE TABLE IF NOT EXISTS payments (
   credits_added INT NOT NULL,
   paid_at TIMESTAMPTZ NOT NULL,
   payment_ref TEXT UNIQUE,
-  payload JSONB
+  payload JSONB,
+  status TEXT DEFAULT 'pending',
+  error TEXT
 );
 
 -- 推荐关系表：跟踪用户邀请关系

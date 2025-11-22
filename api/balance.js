@@ -1,4 +1,4 @@
-const { SUPABASE, getUserIdFromInitData, getUserCredits, verifyInitData } = require('./_shared')
+const { SUPABASE, getUserIdFromInitData, ensureUserWithWelcomeCredit, verifyInitData } = require('./_shared')
 const { validateInitData, createErrorResponse, createSuccessResponse } = require('./_validation')
 const { balanceRateLimiter } = require('./_rateLimit')
 const { createLoggingMiddleware } = require('./_shared')
@@ -77,8 +77,8 @@ module.exports = async (req, res) => {
       return // 速率限制中间件已经发送了响应
     }
 
-    // 获取用户积分
-    const credits = await getUserCredits(userId)
+    // 获取用户积分（如果是新用户，会自动创建并赠送3点算力）
+    const credits = await ensureUserWithWelcomeCredit(userId)
 
     return res.status(200).json(createSuccessResponse({ 
       credits,

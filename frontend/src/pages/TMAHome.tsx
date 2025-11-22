@@ -563,6 +563,19 @@ export default function Home() {
     const file = event.target.files?.[0]
     if (!file) return
 
+    // 检查用户算力，如果没有算力则阻止上传
+    if (credits === null || credits <= 0) {
+      toast.error('算力不足，无法上传图片。请先充值后再试。')
+      notificationHaptic('error')
+      // 清空文件输入，避免用户重复尝试
+      if (event.target) {
+        event.target.value = ''
+      }
+      // 显示充值弹窗
+      setShowTopUp(true)
+      return
+    }
+
     console.log('文件信息:', {
       name: file.name,
       type: file.type,
@@ -617,7 +630,7 @@ export default function Home() {
     }
 
     reader.readAsDataURL(file)
-  }, [notificationHaptic])
+  }, [notificationHaptic, credits])
 
   // 监听uploadedImage变化并初始化Canvas
   useEffect(() => {
@@ -962,6 +975,14 @@ export default function Home() {
     if (maskObjectCount === 0) {
       toast.error('请先绘制遮罩区域')
       notificationHaptic('error')
+      return
+    }
+
+    // 检查用户算力，如果没有算力则阻止处理
+    if (credits === null || credits <= 0) {
+      toast.error('算力不足，无法开始处理。请先充值后再试。')
+      notificationHaptic('error')
+      setShowTopUp(true)
       return
     }
 
