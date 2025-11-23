@@ -277,16 +277,51 @@ module.exports = async (req, res) => {
     }))
 
   } catch (error) {
+    // 详细记录错误信息（生产环境也需要详细日志用于调试）
     logger.error('Create invoice unexpected error', { 
       userId: req.userId || 'unknown', 
       sku: req.body?.sku, 
       error: error.message,
+      errorName: error.name,
       stack: error.stack,
-      requestId
+      requestId,
+      env: {
+        hasToken: !!process.env.TELEGRAM_BOT_TOKEN,
+        hasSupabase: !!SUPABASE,
+        nodeEnv: process.env.NODE_ENV
+      }
     })
+    
+    // 根据错误类型提供更有用的错误信息
+    let userFriendlyMessage = 'An unexpected error occurred. Please try again later.'
+    let errorCode = 'UNKNOWN_ERROR'
+    
+    if (error.message) {
+      // 网络错误
+      if (error.message.includes('fetch') || error.message.includes('network') || error.message.includes('ECONNREFUSED')) {
+        userFriendlyMessage = 'Network error: Unable to connect to Telegram API. Please check your internet connection and try again.'
+        errorCode = 'NETWORK_ERROR'
+      }
+      // 配置错误
+      else if (error.message.includes('TELEGRAM_BOT_TOKEN') || error.message.includes('configuration')) {
+        userFriendlyMessage = 'Server configuration error. Please contact support.'
+        errorCode = 'CONFIG_ERROR'
+      }
+      // JSON 解析错误
+      else if (error.message.includes('JSON') || error.message.includes('parse')) {
+        userFriendlyMessage = 'Invalid response from server. Please try again.'
+        errorCode = 'PARSE_ERROR'
+      }
+      // 开发环境显示详细错误
+      else if (process.env.NODE_ENV === 'development') {
+        userFriendlyMessage = error.message
+      }
+    }
+    
     return res.status(500).json(createErrorResponse(
       'Internal server error', 
-      process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred. Please try again later.'
+      userFriendlyMessage,
+      { errorCode, requestId } // 提供错误代码和请求ID用于追踪
     ))
   }
 }

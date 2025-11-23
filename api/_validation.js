@@ -141,8 +141,11 @@ function validateRequiredFields(body, requiredFields) {
 /**
  * 统一的错误响应格式
  * 确保 error 和 details 始终是字符串
+ * @param {string} error - 错误消息
+ * @param {string|null} details - 错误详情
+ * @param {object} metadata - 可选的元数据（如 errorCode, requestId 等）
  */
-function createErrorResponse(error, details = null) {
+function createErrorResponse(error, details = null, metadata = null) {
   // 确保 error 是字符串
   let errorStr = error
   if (typeof error !== 'string') {
@@ -175,12 +178,19 @@ function createErrorResponse(error, details = null) {
     }
   }
   
-  return {
+  const response = {
     success: false,
     error: errorStr,
     details: detailsStr,
     timestamp: new Date().toISOString()
   }
+  
+  // 添加元数据（如果提供）
+  if (metadata && typeof metadata === 'object') {
+    Object.assign(response, metadata)
+  }
+  
+  return response
 }
 
 /**
