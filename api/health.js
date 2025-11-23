@@ -30,17 +30,34 @@ module.exports = async (req, res) => {
     
     // 获取 Git 信息（支持多种方式）
     let gitInfo = { commitSha: null, shortSha: null, commitMessage: null, commitDate: null, branch: 'main' }
+    
+    // 方式1：尝试读取构建时生成的 git-info.json（最可靠）
     try {
-      // 方式1：尝试读取构建时生成的 git-info.json
       gitInfo = require('../git-info.json')
-    } catch {
+      logger.info('Using git-info.json for build information', gitInfo)
+    } catch (jsonError) {
+      logger.warn('Failed to read git-info.json', { error: jsonError.message })
+      
       try {
-        // 方式2：运行时通过环境变量获取（Vercel 等）
+        // 方式2：运行时获取 Git 信息
+        const { execSync } = require('child_process')
+        gitInfo.commitSha = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim()
+        gitInfo.shortSha = gitInfo.commitSha.substring(0, 7)
+        gitInfo.commitMessage = execSync('git log -1 --pretty=%B', { encoding: 'utf8' }).trim()
+        gitInfo.commitDate = execSync('git log -1 --pretty=%ci', { encoding: 'utf8' }).trim()
+        gitInfo.branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim()
+        logger.info('Using runtime Git commands for build information', gitInfo)
+      } catch (gitError) {
+        logger.warn('Failed to get Git info from commands', { error: gitError.message })
+        
+        // 方式3：运行时通过环境变量获取（Vercel 等）
         gitInfo.commitSha = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || null
         gitInfo.shortSha = gitInfo.commitSha ? String(gitInfo.commitSha).substring(0, 7) : null
         gitInfo.branch = process.env.VERCEL_GIT_COMMIT_REF || 'main'
         gitInfo.commitMessage = process.env.VERCEL_GIT_COMMIT_MESSAGE || null
-      } catch {}
+        gitInfo.commitDate = process.env.VERCEL_GIT_COMMIT_AUTHOR_DATE || null
+        logger.info('Using environment variables for build information', gitInfo)
+      }
     }
     
     const versionValue = process.env.APP_VERSION || process.env.NEXT_PUBLIC_APP_VERSION || pkg.version || '0.0.0'
