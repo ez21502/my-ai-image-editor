@@ -63,6 +63,9 @@ module.exports = async (req, res) => {
       !!process.env.SUPABASE_URL && 
       !!process.env.SUPABASE_SERVICE_ROLE_KEY
 
+    // 检查测试模式状态
+    health.testMode = process.env.TEST_MODE === 'true'
+
     // 测试 Supabase 连接
     if (health.services.supabase.configured) {
       try {
