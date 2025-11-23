@@ -1,4 +1,4 @@
-const { SUPABASE, SKU_MAP, verifyInitData, getUserIdFromInitData } = require('./_shared')
+const { SUPABASE, SKU_MAP, verifyInitData, getUserIdFromInitData, getStartParam } = require('./_shared')
 const { validateRequiredFields, validateSKU, createErrorResponse, createSuccessResponse } = require('./_validation')
 const { invoiceRateLimiter } = require('./_rateLimit')
 const { isTestMode, isTestSKU, getTestSKUs } = require('./_test')
@@ -23,29 +23,23 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const { initData, sku } = req.body
+    const { initData, userId: userIdInput, sku } = req.body
     
-    logger.info('Creating invoice request received', { 
-      hasInitData: !!initData, 
-      sku, 
-      isTestMode: isTestMode(),
-      requestId 
-    })
+    const startParam = getStartParam(initData)
+    logger.info('Creating invoice request received', { hasInitData: !!initData, sku, isTestMode: isTestMode(), startParam, requestId })
     
-    // 输入验证
-    const requiredValidation = validateRequiredFields(req.body, ['initData', 'sku'])
-    if (!requiredValidation.valid) {
-      logger.warn('Validation failed - missing required fields', { 
-        error: requiredValidation.error,
-        body: { hasInitData: !!req.body.initData, hasSku: !!req.body.sku }
-      })
-      return res.status(400).json(createErrorResponse('Validation failed', requiredValidation.error))
+    // 输入验证：至少提供 sku
+    const skuValidationPresence = validateRequiredFields(req.body, ['sku'])
+    if (!skuValidationPresence.valid) {
+      logger.warn('Validation failed - missing SKU', { error: skuValidationPresence.error })
+      return res.status(400).json(createErrorResponse('Validation failed', skuValidationPresence.error))
     }
     
     // 验证 SKU
     const skuValidation = validateSKU(sku)
-    if (!skuValidation.valid) {
-      logger.warn('Validation failed - invalid SKU', { sku, error: skuValidation.error })
+    const allowTestByStartParam = startParam && String(startParam).toLowerCase().includes('test') && sku.startsWith('test_')
+    if (!skuValidation.valid && !allowTestByStartParam) {
+      logger.warn('Validation failed - invalid SKU', { sku, error: skuValidation.error, startParam })
       return res.status(400).json(createErrorResponse('Invalid SKU', skuValidation.error))
     }
 
@@ -62,29 +56,28 @@ module.exports = async (req, res) => {
       ))
     }
 
-    // 验证 initData
-    const isValidInitData = verifyInitData(initData, token)
-    if (!isValidInitData) {
-      logger.warn('Invalid initData', { 
-        hasInitData: !!initData,
-        initDataLength: initData?.length,
-        initDataPreview: initData?.substring(0, 50)
-      })
-      return res.status(401).json(createErrorResponse(
-        'Invalid initData', 
-        'The provided initData is invalid or has been tampered with. Please ensure you are using the app from Telegram.'
-      ))
+    // 用户识别：优先使用 initData，失败则回退 userIdInput
+    let userId = null
+    if (initData) {
+      const isValidInitData = verifyInitData(initData, token)
+      if (isValidInitData) {
+        userId = getUserIdFromInitData(initData)
+      } else {
+        logger.warn('Invalid initData, will try userId fallback', {
+          hasInitData: !!initData,
+          initDataLength: initData?.length,
+          initDataPreview: initData?.substring(0, 50)
+        })
+      }
     }
-
-    const userId = getUserIdFromInitData(initData)
+    if (!userId && userIdInput && /^\d+$/.test(String(userIdInput))) {
+      userId = Number(userIdInput)
+    }
     if (!userId) {
-      logger.warn('Cannot extract user ID from initData', {
-        hasInitData: !!initData,
-        initDataPreview: initData?.substring(0, 100)
-      })
+      logger.warn('Missing user identifier for invoice creation', { hasInitData: !!initData, hasUserIdInput: !!userIdInput })
       return res.status(400).json(createErrorResponse(
-        'Cannot extract user ID', 
-        'Unable to extract user ID from initData. Please ensure you are using the app from Telegram.'
+        'Missing user', 
+        'User identity is required. Please open the app from Telegram and try again.'
       ))
     }
     
@@ -119,11 +112,13 @@ module.exports = async (req, res) => {
 
     // 获取商品配置（支持测试SKU）
     let mapping = SKU_MAP[sku]
-    
-    // 如果启用测试模式且是测试SKU，使用测试配置
-    if (isTestMode() && isTestSKU(sku)) {
+    if (!mapping && (isTestMode() && isTestSKU(sku))) {
       mapping = getTestSKUs()[sku]
       logger.info('Using test SKU configuration', { userId, sku, mapping })
+    }
+    if (!mapping && allowTestByStartParam) {
+      mapping = getTestSKUs()[sku]
+      logger.info('Using test SKU by startParam', { userId, sku, startParam, mapping })
     }
     
     if (!mapping) {
@@ -150,7 +145,7 @@ module.exports = async (req, res) => {
     const invoiceData = {
       title: 'AI图片编辑算力点',
       description: `${safeLabel} - 可用于AI图片重绘`,
-      payload: JSON.stringify({ userId, sku }),
+      payload: JSON.stringify({ sku }),
       provider_token: '', // Stars支付不需要provider_token
       currency: 'XTR', // Stars货币
       prices: [{

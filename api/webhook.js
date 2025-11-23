@@ -14,25 +14,29 @@ module.exports = async (req, res) => {
   }
   const update = req.body
   const botToken = process.env.TELEGRAM_BOT_TOKEN
+
+  // 优先同步处理 pre_checkout_query，避免平台在响应后终止导致未及时应答
+  if (botToken && update?.pre_checkout_query?.id) {
+    try {
+      await fetch(`https://api.telegram.org/bot${botToken}/answerPreCheckoutQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
+      })
+    } catch {}
+  }
+
   res.status(200).json({ ok: true })
   ;(async () => {
     try {
-      if (botToken && update?.pre_checkout_query?.id) {
-        try {
-          await fetch(`https://api.telegram.org/bot${botToken}/answerPreCheckoutQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pre_checkout_query_id: update.pre_checkout_query.id, ok: true })
-          })
-        } catch {}
-      }
       const payment = update?.successful_payment
       if (!payment) {
         return
       }
       let payload = {}
       try { payload = JSON.parse(payment.invoice_payload || '{}') } catch {}
-      const userId = payload.userId
+      const payerId = update?.message?.from?.id || update?.message?.chat?.id
+      const userId = payerId ? Number(payerId) : null
       const sku = payload.sku
       if (!userId || !sku) {
         return
