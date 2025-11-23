@@ -1,0 +1,7 @@
+{
+  "commitSha": "bfb4916ee2611ca1cbe65342ff9174aefee46983",
+  "shortSha": "bfb4916",
+  "commitMessage": "feat: 添加版本号显示，便于验证部署生效版本",
+  "commitDate": "2025-11-24 06:33:52 +0800",
+  "branch": "main"
+}

@@ -27,9 +27,23 @@ module.exports = async (req, res) => {
     const startTime = Date.now()
     let pkg = { version: '0.0.0' }
     try { pkg = require('../package.json') } catch {}
+    
+    // 获取 Git 信息（支持多种方式）
+    let gitInfo = { commitSha: null, shortSha: null, commitMessage: null, commitDate: null, branch: 'main' }
+    try {
+      // 方式1：尝试读取构建时生成的 git-info.json
+      gitInfo = require('../git-info.json')
+    } catch {
+      try {
+        // 方式2：运行时通过环境变量获取（Vercel 等）
+        gitInfo.commitSha = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || null
+        gitInfo.shortSha = gitInfo.commitSha ? String(gitInfo.commitSha).substring(0, 7) : null
+        gitInfo.branch = process.env.VERCEL_GIT_COMMIT_REF || 'main'
+        gitInfo.commitMessage = process.env.VERCEL_GIT_COMMIT_MESSAGE || null
+      } catch {}
+    }
+    
     const versionValue = process.env.APP_VERSION || process.env.NEXT_PUBLIC_APP_VERSION || pkg.version || '0.0.0'
-    const commitSha = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || null
-    const shortSha = commitSha ? String(commitSha).substring(0, 7) : null
     const vercelEnv = process.env.VERCEL_ENV || process.env.NODE_ENV || 'production'
     const buildId = process.env.VERCEL_BUILD_ID || null
     
@@ -40,7 +54,15 @@ module.exports = async (req, res) => {
       uptime: process.uptime(),
       environment: process.env.NODE_ENV || 'development',
       version: versionValue,
-      build: { commitSha, shortSha, vercelEnv, buildId },
+      build: { 
+        commitSha: gitInfo.commitSha, 
+        shortSha: gitInfo.shortSha, 
+        vercelEnv, 
+        buildId,
+        commitMessage: gitInfo.commitMessage,
+        commitDate: gitInfo.commitDate,
+        branch: gitInfo.branch
+      },
       requestId,
       services: {
         supabase: {

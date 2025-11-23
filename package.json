@@ -4,6 +4,8 @@
   "description": "AI Image Editor with Telegram Payments",
   "private": true,
   "scripts": {
+    "build:git": "node scripts/build-git-info.js",
+    "build": "npm run build:git",
     "dev:api": "node local-dev-server.js",
     "dev:frontend": "cd frontend && npm run dev",
     "dev": "concurrently \"npm run dev:api\" \"npm run dev:frontend\"",
