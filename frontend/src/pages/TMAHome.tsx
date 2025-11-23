@@ -33,7 +33,7 @@ declare global {
 }
 
 export default function Home() {
-  const { user, isInTelegram, showMainButton, hideMainButton, impactHaptic, notificationHaptic, initData, openInvoice, onInvoiceClosed, viewportHeight, viewportStableHeight } = useTMA()
+  const { user, isInTelegram, showMainButton, hideMainButton, impactHaptic, notificationHaptic, initData, openInvoice, onInvoiceClosed, viewportHeight, viewportStableHeight, startParam } = useTMA()
   
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -58,6 +58,7 @@ export default function Home() {
   const [canvasZoom, setCanvasZoom] = useState(1.0)
   const [canvasPan, setCanvasPan] = useState({ x: 0, y: 0 })
   const [isPanMode, setIsPanMode] = useState(false)
+  const [appVersion, setAppVersion] = useState<string>('')
   
   // 开发环境检测 - 必须在其他useEffect之前定义
   const [isDevEnvironment] = useState(() => {
@@ -76,6 +77,18 @@ export default function Home() {
       console.log('支付配置正常', { paymentsBaseUrl, fromEnv: !!import.meta.env.VITE_PAYMENTS_BASE_URL })
     }
   }, [isInTelegram, paymentsBaseUrl])
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${paymentsBaseUrl}/health`)
+        const json = await res.json()
+        const v = json?.data?.version || ''
+        const s = json?.data?.build?.shortSha || ''
+        setAppVersion(s ? `${v} · ${s}` : v)
+      } catch {}
+    })()
+  }, [paymentsBaseUrl])
   
   // 使用统一的支付钩子
   const { credits, isLoading: isPaymentLoading, isProcessing: isPaymentProcessing, fetchBalance, createInvoice, consumeCredits, openPaymentModal } = usePayments(paymentsBaseUrl)
@@ -126,12 +139,17 @@ export default function Home() {
   }, [openPaymentModal, notificationHaptic])
 
   // 充值套餐数据
-  const PACKAGES = [
+  const BASE_PACKAGES = [
     { sku: 'pack12', xtr: 50, credits: 12, label: '12算力点', popular: false },
     { sku: 'pack30', xtr: 100, credits: 30, label: '30算力点', popular: true },
     { sku: 'pack60', xtr: 180, credits: 60, label: '60算力点', popular: false },
     { sku: 'pack88', xtr: 250, credits: 88, label: '88算力点', popular: false }
   ]
+  const isTestEnv = import.meta.env.VITE_TEST_MODE === 'true'
+  const showTest = isTestEnv || (startParam && String(startParam).toLowerCase().includes('test'))
+  const PACKAGES = showTest 
+    ? [{ sku: 'pack1', xtr: 1, credits: 1, label: '1算力点', popular: true }, { sku: 'test_credits_1', xtr: 1, credits: 10, label: '测试10算力点', popular: false }, ...BASE_PACKAGES]
+    : BASE_PACKAGES
   
   const [selectedPackage, setSelectedPackage] = useState<string>('pack30')
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
@@ -1680,6 +1698,7 @@ export default function Home() {
           </div>
         </div>
       </Modal>
+      <div className="fixed bottom-2 right-2 text-xs text-gray-400">版本: {appVersion || '未知'}</div>
     </div>
   )
 }

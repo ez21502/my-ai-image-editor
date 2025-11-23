@@ -25,6 +25,13 @@ module.exports = async (req, res) => {
 
   try {
     const startTime = Date.now()
+    let pkg = { version: '0.0.0' }
+    try { pkg = require('../package.json') } catch {}
+    const versionValue = process.env.APP_VERSION || process.env.NEXT_PUBLIC_APP_VERSION || pkg.version || '0.0.0'
+    const commitSha = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || null
+    const shortSha = commitSha ? String(commitSha).substring(0, 7) : null
+    const vercelEnv = process.env.VERCEL_ENV || process.env.NODE_ENV || 'production'
+    const buildId = process.env.VERCEL_BUILD_ID || null
     
     // 基础健康检查
     const health = {
@@ -32,7 +39,8 @@ module.exports = async (req, res) => {
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       environment: process.env.NODE_ENV || 'development',
-      version: '1.0.0',
+      version: versionValue,
+      build: { commitSha, shortSha, vercelEnv, buildId },
       requestId,
       services: {
         supabase: {
@@ -62,9 +70,6 @@ module.exports = async (req, res) => {
       !!process.env.TELEGRAM_BOT_TOKEN && 
       !!process.env.SUPABASE_URL && 
       !!process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    // 检查测试模式状态
-    health.testMode = process.env.TEST_MODE === 'true'
 
     // 测试 Supabase 连接
     if (health.services.supabase.configured) {
