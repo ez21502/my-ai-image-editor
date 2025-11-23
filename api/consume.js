@@ -1,5 +1,5 @@
 const { SUPABASE, getUserIdFromInitData, consumeOneCredit, verifyInitData, ensureUserWithWelcomeCredit } = require('./_shared')
-const { validateRequiredFields, validateBase64Image, validatePrompt, validateChatId, createErrorResponse, createSuccessResponse } = require('./_validation')
+const { validateRequiredFields, validateBase64Image, validatePrompt, validateChatId, validateInitData, createErrorResponse, createSuccessResponse } = require('./_validation')
 const { consumeRateLimiter } = require('./_rateLimit')
 const { createLoggingMiddleware } = require('./_shared')
 const { corsMiddleware, handleOptions } = require('./_cors')
@@ -23,6 +23,7 @@ module.exports = async (req, res) => {
 
   try {
     const { initData, composite_image_base64, prompt, chat_id } = req.body
+    let userIdVar = null
     
     // 输入验证
     const requiredValidation = validateRequiredFields(req.body, ['initData', 'composite_image_base64', 'prompt', 'chat_id'])
@@ -67,6 +68,7 @@ module.exports = async (req, res) => {
     }
     
     const userId = getUserIdFromInitData(initData)
+    userIdVar = userId
     if (!userId) {
       return res.status(400).json(createErrorResponse('Cannot extract user ID'))
     }
@@ -138,16 +140,17 @@ module.exports = async (req, res) => {
 
     if (!response.ok) {
       // 如果 Make Webhook 失败，返还积分
+      const uid = req.userId || userIdVar
       const { data: userData } = await SUPABASE.from('user_credits')
         .select('credits')
-        .eq('telegram_user_id', userId)
+        .eq('telegram_user_id', uid)
         .limit(1)
         .maybeSingle()
       
       if (userData) {
         await SUPABASE.from('user_credits')
           .update({ credits: userData.credits + 1 })
-          .eq('telegram_user_id', userId)
+          .eq('telegram_user_id', uid)
       }
       
       req.auditLogger.logUserAction(userId, 'webhook_failed_credit_refunded', {
@@ -169,16 +172,17 @@ module.exports = async (req, res) => {
     // 处理超时错误
     if (error.name === 'AbortError') {
       // 超时也需要返还积分
+      const uid = req.userId || userIdVar
       const { data: userData } = await SUPABASE.from('user_credits')
         .select('credits')
-        .eq('telegram_user_id', userId)
+        .eq('telegram_user_id', uid)
         .limit(1)
         .maybeSingle()
       
       if (userData) {
         await SUPABASE.from('user_credits')
           .update({ credits: userData.credits + 1 })
-          .eq('telegram_user_id', userId)
+          .eq('telegram_user_id', uid)
       }
       
       req.auditLogger.logUserAction(userId, 'webhook_timeout_credit_refunded', {

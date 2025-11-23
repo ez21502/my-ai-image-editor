@@ -1,12 +1,23 @@
 const crypto = require('crypto')
 const { createClient } = require('@supabase/supabase-js')
+try {
+  const { setGlobalDispatcher, ProxyAgent } = require('undici')
+  const proxyUrl = process.env.OUTBOUND_HTTP_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY
+  if (proxyUrl) {
+    setGlobalDispatcher(new ProxyAgent(proxyUrl))
+  }
+} catch {}
 
-// 生产环境：必须配置 Supabase
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error('Missing required environment variables: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured for production')
+let SUPABASE = null
+if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  SUPABASE = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+} else {
+  SUPABASE = new Proxy({}, {
+    get() {
+      throw new Error('Supabase is not configured: set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY')
+    }
+  })
 }
-
-const SUPABASE = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 
 // Admin 权限验证工具
 const ADMIN_WHITELIST = process.env.ADMINS ? process.env.ADMINS.split(',').map(id => id.trim()) : []

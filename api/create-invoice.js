@@ -146,14 +146,15 @@ module.exports = async (req, res) => {
       ))
     }
     
+    const safeLabel = mapping.label || `测试算力点${mapping.credits || ''}`.trim()
     const invoiceData = {
       title: 'AI图片编辑算力点',
-      description: `${mapping.label} - 可用于AI图片重绘`,
+      description: `${safeLabel} - 可用于AI图片重绘`,
       payload: JSON.stringify({ userId, sku }),
       provider_token: '', // Stars支付不需要provider_token
       currency: 'XTR', // Stars货币
       prices: [{
-        label: mapping.label,
+        label: safeLabel,
         amount: mapping.xtr // Stars数量
       }]
     }

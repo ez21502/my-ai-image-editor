@@ -1,14 +1,13 @@
 // CORS 配置中间件
 
-// CORS 允许的来源列表
-// 注意：生产环境应通过环境变量配置允许的来源
-const ALLOWED_ORIGINS = [
-  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : []), // 从环境变量读取
-  'http://localhost:3000', // 本地开发
-  'http://localhost:5173', // Vite 默认端口
-  'http://127.0.0.1:3000', // 本地开发（IP）
-  'http://127.0.0.1:5173' // Vite 本地开发（IP）
+const ENV_ALLOWED = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : []
+const LOCAL_ALLOWED = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173'
 ]
+const ALLOWED_ORIGINS = process.env.NODE_ENV === 'production' ? ENV_ALLOWED : (ENV_ALLOWED.length ? ENV_ALLOWED : LOCAL_ALLOWED)
 
 /**
  * 检查是否为同源请求（前后端在同一域名）

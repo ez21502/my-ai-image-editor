@@ -35,7 +35,11 @@ function validateSKU(sku) {
     return { valid: false, error: 'Missing or invalid SKU' }
   }
   
+  // 测试模式允许使用以 test_ 开头的 SKU
   if (!validSKUs.includes(sku)) {
+    if (process.env.TEST_MODE === 'true' && sku.startsWith('test_')) {
+      return { valid: true }
+    }
     return { valid: false, error: 'Invalid SKU. Valid options: pack12, pack30, pack60, pack88' }
   }
   
@@ -62,7 +66,7 @@ function validateBase64Image(base64Data) {
   const sizeInBytes = Buffer.byteLength(pureBase64, 'base64')
   const sizeInMB = sizeInBytes / (1024 * 1024)
   if (sizeInMB > 3) {
-    return { valid: false, error: 'Image size exceeds 5MB limit' }
+    return { valid: false, error: 'Image size exceeds 3MB limit' }
   }
   
   return { valid: true }
